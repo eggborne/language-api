@@ -10,7 +10,8 @@
     "build:client:dev": "webpack --config webpack.config.js --mode development",
     "watch:client": "webpack --watch --config webpack.config.js --mode development",
     "start:dev": "nodemon",
-    "start": "npm run build:client:dev && npm run build:server && npm run start:server"
+    "start": "npm run build:client:dev && npm run build:server && npm run start:server",
+    "prod": "npm run build:client && npm run build:server"
   },
   "repository": {
     "type": "git",
