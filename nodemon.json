@@ -1,6 +1,6 @@
 {
   "watch": [
-    "src"
+    "src", "client"
   ],
   "ext": "ts",
   "ignore": [

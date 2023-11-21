@@ -11,13 +11,29 @@ import Word from './models/word';
 const app = express();
 const port = 3000;
 
-const compiler = webpack(webpackConfig as Configuration);
-app.use(webpackDevMiddleware(compiler, {
-  publicPath: webpackConfig.output.publicPath
-}));
+console.log("Current Environment:", process.env.NODE_ENV);
 
-app.use(webpackHotMiddleware(compiler));
+if (process.env.NODE_ENV === 'development') {
+  const webpackConfigObject = webpackConfig({}, { mode: 'development' });
 
+  const compiler = webpack(webpackConfigObject as Configuration);
+  app.use(webpackDevMiddleware(compiler, {
+    publicPath: webpackConfigObject.output.publicPath
+  }));
+  app.use(webpackHotMiddleware(compiler));
+  const testDBConnection = async () => {
+    try {
+      await sequelize.authenticate();
+      console.log('Connection has been established successfully.');
+    } catch (error) {
+      console.error('Unable to connect to the database:', error);
+    }
+  };
+
+  testDBConnection();
+} else {
+  app.use(express.static(path.join(__dirname, '../public')));
+}
 
 app.get('/check', async (req, res) => {
   try {
@@ -34,19 +50,6 @@ app.get('/check', async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname, '../public')));
-
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
-
-const testDBConnection = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('Connection has been established successfully.');
-  } catch (error) {
-    console.error('Unable to connect to the database:', error);
-  }
-};
-
-// testDBConnection();

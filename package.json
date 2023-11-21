@@ -6,9 +6,11 @@
   "scripts": {
     "build:server": "tsc -p tsconfig.server.json",
     "start:server": "node dist/index.js",
-    "build:client": "webpack --config webpack.config.js --mode development",
+    "build:client": "webpack --config webpack.config.js --mode production",
+    "build:client:dev": "webpack --config webpack.config.js --mode development",
     "watch:client": "webpack --watch --config webpack.config.js --mode development",
-    "start:dev": "nodemon"
+    "start:dev": "nodemon",
+    "start": "npm run build:client:dev && npm run build:server && npm run start:server"
   },
   "repository": {
     "type": "git",
@@ -28,8 +30,10 @@
     "@types/webpack-hot-middleware": "^2.25.9",
     "css-loader": "^6.8.1",
     "html-webpack-plugin": "^5.5.3",
+    "mini-css-extract-plugin": "^2.7.6",
     "nodemon": "^3.0.1",
     "style-loader": "^3.3.3",
+    "terser-webpack-plugin": "^5.3.9",
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2",
