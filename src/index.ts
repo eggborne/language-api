@@ -1,41 +1,36 @@
 import express from 'express';
 import path from 'path';
-import webpack, { Configuration } from 'webpack';
-import webpackDevMiddleware from 'webpack-dev-middleware';
-import webpackHotMiddleware from 'webpack-hot-middleware';
-// @ts-ignore
-import webpackConfig from '../webpack.config';
+
 import sequelize from './sequelize';
 import Word from './models/word';
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
+
+// Log every request received
+app.use((req, res, next) => {
+  console.log('Received request:', req.method, req.path);
+  next(); // Continue to the next middleware or route handler
+});
 
 console.log("Current Environment:", process.env.NODE_ENV);
 
-if (process.env.NODE_ENV === 'development') {
-  const webpackConfigObject = webpackConfig({}, { mode: 'development' });
+const devMode = process.env.NODE_ENV === 'development';
 
-  const compiler = webpack(webpackConfigObject as Configuration);
-  app.use(webpackDevMiddleware(compiler, {
-    publicPath: webpackConfigObject.output.publicPath
-  }));
-  app.use(webpackHotMiddleware(compiler));
-  const testDBConnection = async () => {
-    try {
-      await sequelize.authenticate();
-      console.log('Connection has been established successfully.');
-    } catch (error) {
-      console.error('Unable to connect to the database:', error);
-    }
-  };
+const testDBConnection = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Connection has been established successfully.');
+  } catch (error) {
+    console.error('Unable to connect to the database:', error);
+  }
+};
+const runningLocally = __dirname.includes('dist');
 
-  testDBConnection();
-} else {
-  app.use(express.static(path.join(__dirname, '../public')));
-}
+const prefix = runningLocally ? '' : '/language-api';
+// const prefix = '';
 
-app.get('/check', async (req, res) => {
+app.get(`${prefix}/check`, async (req, res) => {
   try {
     const wordToCheck = req.query.word;
     if (!wordToCheck) {
@@ -50,6 +45,17 @@ app.get('/check', async (req, res) => {
   }
 });
 
+console.log('\nServing static files from:', path.join(__dirname, 'public'));
+// app.use(express.static(path.join(__dirname, 'public')));
+app.use(prefix, express.static(path.join(__dirname, 'public')));
+
+
+// Catch-all route for SPA
+// app.get('*', (req, res) => {
+//   console.log('Serving index.html for path:', req.path);
+//   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// });
+
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`\nServer running on http://localhost:${port}`);
 });

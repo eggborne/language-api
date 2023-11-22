@@ -4,13 +4,19 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
+
 module.exports = (env, argv) => {
+  console.log('Webpack argv.mode:', argv.mode);
+  console.log('Webpack argv:', argv);
+  console.log('Webpack env:', env);
   const isProduction = argv.mode === 'production';
+  
+  const baseUrl = isProduction ? '/language-api' : '/';
 
   return {
-    mode: isProduction ? 'production' : 'development',
+    mode: argv.mode,
 
-    entry: ['./client/scripts.ts', 'webpack-hot-middleware/client'],
+    entry: isProduction ? ['./client/scripts.ts'] : ['./client/scripts.ts', 'webpack-hot-middleware/client'],
     module: {
       rules: [
         {
@@ -34,7 +40,7 @@ module.exports = (env, argv) => {
         template: './client/index.html', // Path to your source index.html
         filename: 'index.html' // Output file in /public directory
       }),
-      new webpack.HotModuleReplacementPlugin(),
+      !isProduction && new webpack.HotModuleReplacementPlugin(),
       isProduction && new MiniCssExtractPlugin()
     ].filter(Boolean),
     optimization: {
@@ -46,8 +52,8 @@ module.exports = (env, argv) => {
     },
     output: {
       filename: 'bundle.js',
-      path: path.resolve(__dirname, 'public'),
-      publicPath: '/'
+      path: path.resolve(__dirname, 'dist', 'public'),
+      publicPath: baseUrl
     }
   };
 };
