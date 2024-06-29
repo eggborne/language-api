@@ -1,11 +1,14 @@
-import express from 'express';
-import path from 'path';
-
-import sequelize from './sequelize';
-import Word from './models/word';
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const sequelize = require('./sequelize');
+const Word = require('./models/word');
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Use CORS middleware
+app.use(cors());
 
 // Log every request received
 app.use((req, res, next) => {
@@ -25,10 +28,11 @@ const testDBConnection = async () => {
     console.error('Unable to connect to the database:', error);
   }
 };
+testDBConnection();
+
 const runningLocally = __dirname.includes('dist');
 
 const prefix = runningLocally ? '' : '/language-api';
-// const prefix = '';
 
 app.get(`${prefix}/check`, async (req, res) => {
   try {
@@ -41,21 +45,13 @@ app.get(`${prefix}/check`, async (req, res) => {
     return res.json({ exists: !!wordExists });
   } catch (error) {
     console.error(error);
-    return res.status(500).send('Error occurred while checking the word');
+    return res.status(500).send('Error occurred while checking the word ' + error.message);
   }
 });
 
 console.log('\nServing static files from:', path.join(__dirname, 'public'));
-// app.use(express.static(path.join(__dirname, 'public')));
 app.use(prefix, express.static(path.join(__dirname, 'public')));
 
-
-// Catch-all route for SPA
-// app.get('*', (req, res) => {
-//   console.log('Serving index.html for path:', req.path);
-//   res.sendFile(path.join(__dirname, 'public', 'index.html'));
-// });
-
 app.listen(port, () => {
-  console.log(`\nServer running on http://localhost:${port}`);
+  console.log(`Server running on http://localhost:${port}`);
 });

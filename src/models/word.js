@@ -1,9 +1,7 @@
-import { DataTypes, Model } from 'sequelize';
-import sequelize from '../sequelize';
+const { DataTypes, Model } = require('sequelize');
+const sequelize = require('../sequelize');
 
-class Word extends Model {
-  public word!: string;
-}
+class Word extends Model { }
 
 Word.init({
   id: {
@@ -24,4 +22,4 @@ Word.init({
   freezeTableName: true
 });
 
-export default Word;
+module.exports = Word;
