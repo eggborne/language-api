@@ -40,7 +40,7 @@ const boggleCubeSets = {
   0: [], 1: [], 2: [], 3: [],
   regular: ['AAEEGN', 'ABBJOO', 'ACHOPS', 'AFFKPS', 'AOOTTW', 'CIMOTU', 'DEILRX', 'DELRVY', 'DISTTY', 'EEGHNW', 'EEINSU', 'EHRTVW', 'EIOSST', 'ELRTTY', 'HIMNUQ', 'HLNNRZ'],
   big: ['AAAFRS', 'AAEEEE', 'AAFIRS', 'ADENNN', 'AEEEEM', 'AEEGMU', 'AEGMNN', 'AFIRSY', 'BJKQXZ', 'CCENST', 'CEIILT', 'CEILPT', 'CEIPST', 'DDHNOT', 'DHHLOR', 'DHLNOR', 'DHLNOR', 'EIIITT', 'EMOTTT', 'ENSSSU', 'FIPRSY', 'GORRVW', 'IPRRRY', 'NOOTUW', 'OOOTTU'],
-  superBig: ['AAAFRS', 'AAEEEE', 'AAEEOO', 'AAFIRS', 'ABDEIO', 'ADENNN', 'AEEEEM', 'AEEGMU', 'AEGMNN', 'AEILMN', 'AEINOU', 'AFIRSY', 'Q12345', 'BBJKXZ', 'CCENST', 'CDDLNN', 'CEIITT', 'CEIPST', 'CFGNUY', 'DDHNOT', 'DHHLOR', 'DHHNOW', 'DHLNOR', 'EHILRS', 'EIILST', 'EILPST', 'EIO000', 'EMTTTO', 'ENSSSU', 'GORRVW', 'HIRSTV', 'HOPRST', 'IPRSYY', 'JKQWXZ', 'NOOTUW', 'OOOTTU']
+  superBig: ['AAAFRS', 'AAEEEE', 'AAEEOO', 'AAFIRS', 'ABDEIO', 'ADENNN', 'AEEEEM', 'AEEGMU', 'AEGMNN', 'AEILMN', 'AEINOU', 'AFIRSY', 'Q12345', 'BBJKXZ', 'CCENST', 'CDDLNN', 'CEIITT', 'CEIPST', 'CFGNUY', 'DDHNOT', 'DHHLOR', 'DHHNOW', 'DHLNOR', 'EHILRS', 'EIILST', 'EILPST', 'EIORST', 'EMTTTO', 'ENSSSU', 'GORRVW', 'HIRSTV', 'HOPRST', 'IPRSYY', 'JKQWXZ', 'NOOTUW', 'OOOTTU']
 };
 
 const letterListfromFrequencyMap = (frequencyMap) => {
@@ -57,20 +57,29 @@ const letterListFromCubeSet = (cubeSet) => {
   return cubeSet.map(cube => cube[randomInt(0, cube.length - 1)]);
 };
 
+const shuffleArray = (array) => {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+};
+
 const getLetterList = (letterData, puzzleSize) => {
   const { width, height } = puzzleSize;
+  let letterList;
   if (letterData === 'boggle' && width === height && width >= 3 && width <= 6) {
-    console.log('using boggleCubeSets', boggleCubeSets);
     const cubeSet = Object.values(boggleCubeSets)[width];
     console.log('using Boggle set', cubeSet);
-    return letterListFromCubeSet(cubeSet);
+    letterList = letterListFromCubeSet(cubeSet);
   } else {
     if (letterData === 'boggle') {
-      return letterListfromFrequencyMap(letterFrequencies['standardEnglish']);
+      letterList = letterListfromFrequencyMap(letterFrequencies['standardEnglish']);
     } else {
-      return letterListfromFrequencyMap(letterFrequencies[letterData]);
+      letterList = letterListfromFrequencyMap(letterFrequencies[letterData]);
     }
   }
+  shuffleArray(letterList);
+  return letterList;
 }
 
 const fetchWords = async () => {
@@ -132,10 +141,13 @@ const findAllWords = (matrix, maximumPathLength, trie) => {
 
 const generateLetterMatrix = (letters, width, height) => {
   let matrix = [];
+  let index = 0;
+
   for (let i = 0; i < height; i++) {
     let row = [];
     for (let j = 0; j < width; j++) {
-      row.push(letters[randomInt(0, letters.length - 1)]);
+      row.push(letters[index]);
+      index++;
     }
     matrix.push(row);
   }
@@ -144,7 +156,9 @@ const generateLetterMatrix = (letters, width, height) => {
 
 const generateBoard = async ({ puzzleSize, maximumPathLength, letterDistribution }) => {
   const letterList = getLetterList(letterDistribution, puzzleSize);
+  console.log('letterList: ', letterList)
   const matrix = generateLetterMatrix(letterList, puzzleSize.width, puzzleSize.height);
+  console.log('matrix: ', matrix);
   const fullWordList = await fetchWords();
   const trie = await initializeTrie(fullWordList);
   const wordList = Array.from(findAllWords(matrix, maximumPathLength, trie)).sort((a, b) => a.length - b.length);
