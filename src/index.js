@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const sequelize = require('./sequelize');
 const Word = require('./models/word');
+const { generateBoard } = require('./puzzleService');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -10,15 +11,14 @@ const port = process.env.PORT || 3000;
 // Use CORS middleware
 app.use(cors());
 
+// Parse JSON bodies
+app.use(express.json());
+
 // Log every request received
 app.use((req, res, next) => {
   console.log('Received request:', req.method, req.path);
   next(); // Continue to the next middleware or route handler
 });
-
-console.log("Current Environment:", process.env.NODE_ENV);
-
-const devMode = process.env.NODE_ENV === 'development';
 
 const testDBConnection = async () => {
   try {
@@ -30,9 +30,9 @@ const testDBConnection = async () => {
 };
 testDBConnection();
 
-const runningLocally = __dirname.includes('dist');
+const prefix = '/language-api';
 
-const prefix = runningLocally ? '' : '/language-api';
+// check
 
 app.get(`${prefix}/check`, async (req, res) => {
   try {
@@ -46,6 +46,26 @@ app.get(`${prefix}/check`, async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).send('Error occurred while checking the word ' + error.message);
+  }
+});
+
+// generate
+
+const defaultPuzzleOptions = {
+  puzzleSize: { width: 4, height: 4 },
+  maximumPathLength: 16,
+  letterDistribution: 'scrabble',
+}
+
+app.post(`${prefix}/generate`, async (req, res) => {
+  try {
+    const options = req.body;
+    const mergedOptions = { ...defaultPuzzleOptions, ...options };
+    const puzzle = await generateBoard(mergedOptions);
+    res.json(puzzle);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send('Error occurred while generating the puzzle ' + error.message);
   }
 });
 
