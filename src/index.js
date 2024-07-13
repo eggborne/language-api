@@ -55,6 +55,7 @@ const defaultPuzzleOptions = {
   dimensions: { width: 4, height: 4 },
   letterDistribution: 'scrabble',
   maximumPathLength: 20,
+  averageWordLengthFilter: undefined,
   totalWordLimits: undefined,
   wordLengthLimits: undefined,
   letters: undefined,
@@ -83,7 +84,11 @@ app.post(`${prefix}/generate`, async (req, res) => {
       return res.status(500).send('Wrong size letter list for length: ' + mergedOptions.letters.length + ' and dimensions: ' + mergedOptions.dimensions.width + ' by ' + mergedOptions.dimensions.height);
     }
     const puzzle = await generateBoard(mergedOptions);
-    res.json(puzzle);
+    if (puzzle) {
+      res.json(puzzle)
+    } else {
+      return res.status(500).send('Too many attempts');
+    }
   } catch (error) {
     console.error(error);
     return res.status(500).send('Puzzle creation error: ' + error.message);

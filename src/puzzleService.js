@@ -167,18 +167,40 @@ const isPuzzleValid = (wordList, options) => {
   if (options.totalWordLimits) {
     const { min, max } = options.totalWordLimits;
     if ((min && wordList.length < min) || (max && wordList.length > max)) {
+      console.log(`totalWordLimit: ${wordList.length} < ${min} or ${wordList.length} > ${max}`);
       return false;
     }
+    // console.warn('totalWordLimit OK')
   }
 
-  if (options.wordLengthLimits) {
+  if (Object.entries(options.wordLengthLimits).length > 0) {
     for (const [wordLength, limits] of Object.entries(options.wordLengthLimits)) {
       const { min = 0, max = Infinity } = limits;
       const wordsOfLength = wordList.filter(word => word.length === parseInt(wordLength)).length;
       if (wordsOfLength < min || wordsOfLength > max) {
+        console.log(`wordLengthLimits: ${wordsOfLength} < ${min} or ${wordsOfLength} > ${max}`);
         return false;
       }
     }
+    // console.warn('wordLengthLimits OK')
+  }
+
+  if (options.averageWordLengthFilter) {
+    const { comparison, value } = options.averageWordLengthFilter;
+    const average = wordList.join('').length / wordList.length;
+    if (comparison === 'lessThan') {
+      if (average > value) {
+        console.log('averageWordLengthFilter:', value, comparison, average);
+        return false;
+      }
+    }
+    if (comparison === 'moreThan') {
+      if (average < value) {
+        console.log('averageWordLengthFilter:', value, comparison, average);
+        return false;
+      }
+    }
+    // console.warn('averageWordLengthFilter OK');
   }
 
   return true;
@@ -200,66 +222,14 @@ const generateBoard = async (options) => {
 
       if (isPuzzleValid(wordList, options)) {
         console.log(`Found valid puzzle after ${attempts} attempts`);
-        console.log('matrix is', matrix)
         return { matrix, wordList };
       }
     } catch (error) {
       console.error('Error generating board:', error);
     }
   }
-}
-
-// let puzzleTries = 0;
-// let timeoutLimit = 100;
-
-// const generateBoard2 = async (options) => {
-//   puzzleTries++;
-//   const { dimensions, letterDistribution, letters } = options;
-//   const letterList = letters ? letters.split('') : getLetterList(letterDistribution, dimensions);
-//   const matrix = generateLetterMatrix(letterList, dimensions.width, dimensions.height);
-//   const fullWordList = await fetchWords();
-//   const trie = await initializeTrie(fullWordList);
-//   const wordList = Array.from(findAllWords(options, matrix, trie)).sort((a, b) => a.length - b.length);
-  
-//   if (options.totalWordLimits) {
-//     const { min, max } = options.totalWordLimits;
-//     if ((min && wordList.length < min) || (max && wordList.length > max)) {
-//       if (puzzleTries === timeoutLimit) {
-//         console.log('timed out after', puzzleTries);
-//         puzzleTries = 0;
-//         return;
-//       } else {
-//         // console.log(wordList.length, 'bad total word length, generating again for tryr', puzzleTries);
-//         return generateBoard(options);
-//       }
-//     } else {
-//       console.log('TOTAL WORDS OK after tries:', puzzleTries, wordList.length);
-//     }
-//   }
-//   if (options.wordLengthLimits) {
-//     let disqualified;
-//     for (const wordLength in options.wordLengthLimits) {
-//       const limits = options.wordLengthLimits[wordLength];
-//       limits.min = limits.min || 0;
-//       limits.max = limits.max || 99999999;
-//       const arrayOfLength = wordList.filter(word => word.length === parseInt(wordLength));
-//       if (arrayOfLength.length < limits.min || arrayOfLength.length > limits.max) {
-//         if (puzzleTries === timeoutLimit) {
-//           console.log('timed out after', puzzleTries);
-//           puzzleTries = 0;
-//           return;
-//         }
-//         disqualified = true;
-//         // console.log(wordLength, '-letter', arrayOfLength.length, 'is out of range of length limits for try', puzzleTries);
-//         return generateBoard(options);
-//       } else {
-//         console.log(wordLength, '-LETTER WORD AMOUT', arrayOfLength.length, 'OK after tries', puzzleTries);
-//       }
-//     }
-//   }
-//   console.log('-----------> FOUND PUZZLE AFTER TRIES:', puzzleTries);
-//   puzzleTries = 0;
-//   return { matrix, wordList };
-// };
+  console.error('reached end of attempts!');
+  return undefined;
+};
 
 module.exports = { generateBoard };
