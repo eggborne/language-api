@@ -64,12 +64,11 @@ const shuffleArray = (array) => {
   }
 };
 
-const getLetterList = (letterData, puzzleSize) => {
-  const { width, height } = puzzleSize;
+const getLetterList = (letterData, dimensions) => {
+  const { width, height } = dimensions;
   let letterList;
   if (letterData === 'boggle' && width === height && width >= 3 && width <= 6) {
     const cubeSet = Object.values(boggleCubeSets)[width];
-    console.log('using Boggle set', cubeSet);
     letterList = letterListFromCubeSet(cubeSet);
   } else {
     if (letterData === 'boggle') {
@@ -80,7 +79,7 @@ const getLetterList = (letterData, puzzleSize) => {
   }
   shuffleArray(letterList);
   return letterList;
-}
+};
 
 const fetchWords = async () => {
   const data = fs.readFileSync(WORD_LIST_PATH, 'utf8');
@@ -93,7 +92,54 @@ const initializeTrie = async (wordList) => {
   return trie;
 };
 
-const findAllWords = (matrix, maximumPathLength, trie) => {
+const findAllWords2 = (matrix, maximumPathLength, trie) => {
+  let validWords = new Set();
+  const directions = [
+    [0, 1], [1, 0], [0, -1], [-1, 0],
+    [-1, -1], [1, 1], [-1, 1], [1, -1]
+  ];
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+
+  const dfs = (x, y, currentWord, currentNode, visited) => {
+    const cellContent = (matrix[x][y]).toUpperCase();
+    const newPath = currentWord + cellContent;
+
+    if (newPath.length > maximumPathLength) return;
+
+    currentNode = trie.searchPrefix(newPath);
+    if (!currentNode) return;
+
+    if (newPath.length >= 3 && currentNode.isEndOfWord) {
+      validWords.add(newPath);
+    }
+
+    visited[x][y] = true;
+
+    for (let [dx, dy] of directions) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < rows && ny < cols && !visited[nx][ny]) {
+        dfs(nx, ny, newPath, currentNode, visited);
+      }
+    }
+
+    visited[x][y] = false;
+  };
+
+  // Iterate through the matrix to start searches from each cell
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
+      dfs(i, j, '', trie.root, visited); // Start with an empty word and the trie root
+    }
+  }
+
+  return validWords;
+};
+const findAllWords = (options, matrix, trie) => {
+  const { maximumPathLength } = options;
+
   let validWords = new Set();
   const directions = [
     [0, 1], [1, 0], [0, -1], [-1, 0],
@@ -154,14 +200,55 @@ const generateLetterMatrix = (letters, width, height) => {
   return convertMatrix(matrix);
 };
 
-const generateBoard = async ({ puzzleSize, maximumPathLength, letterDistribution }) => {
-  const letterList = getLetterList(letterDistribution, puzzleSize);
-  console.log('letterList: ', letterList)
-  const matrix = generateLetterMatrix(letterList, puzzleSize.width, puzzleSize.height);
-  console.log('matrix: ', matrix);
+let puzzleTries = 0;
+let timeoutLimit = 100;
+
+const generateBoard = async (options) => {
+  puzzleTries++;
+  const { dimensions, letterDistribution, letters } = options;
+  const letterList = letters ? letters.split('') : getLetterList(letterDistribution, dimensions);
+  const matrix = generateLetterMatrix(letterList, dimensions.width, dimensions.height);
   const fullWordList = await fetchWords();
   const trie = await initializeTrie(fullWordList);
-  const wordList = Array.from(findAllWords(matrix, maximumPathLength, trie)).sort((a, b) => a.length - b.length);
+  const wordList = Array.from(findAllWords(options, matrix, trie)).sort((a, b) => a.length - b.length);
+  if (options.totalWordLimits) {
+    const { min, max } = options.totalWordLimits;
+    if ((min && wordList.length < min) || (max && wordList.length > max)) {
+      if (puzzleTries === timeoutLimit) {
+        console.log('timed out after', puzzleTries);
+        puzzleTries = 0;
+        return;
+      } else {
+        // console.log(wordList.length, 'bad total word length, generating again for tryr', puzzleTries);
+        return generateBoard(options);
+      }
+    } else {
+      console.log('TOTAL WORDS OK after tries:', puzzleTries, wordList.length);
+    }
+  }
+  if (options.wordLengthLimits) {
+    let disqualified;
+    for (const wordLength in options.wordLengthLimits) {
+      const limits = options.wordLengthLimits[wordLength];
+      limits.min = limits.min || 0;
+      limits.max = limits.max || 99999999;
+      const arrayOfLength = wordList.filter(word => word.length === parseInt(wordLength));
+      if (arrayOfLength.length < limits.min || arrayOfLength.length > limits.max) {
+        if (puzzleTries === timeoutLimit) {
+          console.log('timed out after', puzzleTries);
+          puzzleTries = 0;
+          return;
+        }
+        disqualified = true;
+        // console.log(wordLength, '-letter', arrayOfLength.length, 'is out of range of length limits for try', puzzleTries);
+        return generateBoard(options);
+      } else {
+        console.log(wordLength, '-LETTER WORD AMOUT', arrayOfLength.length, 'OK after tries', puzzleTries);
+      }
+    }
+  }
+  console.log('-----------> FOUND PUZZLE AFTER TRIES:', puzzleTries);
+  puzzleTries = 0;
   return { matrix, wordList };
 };
 

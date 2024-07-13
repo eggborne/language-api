@@ -52,20 +52,41 @@ app.get(`${prefix}/check`, async (req, res) => {
 // generate
 
 const defaultPuzzleOptions = {
-  puzzleSize: { width: 4, height: 4 },
-  maximumPathLength: 16,
+  dimensions: { width: 4, height: 4 },
   letterDistribution: 'scrabble',
-}
+  maximumPathLength: 20,
+  totalWordLimits: undefined,
+  wordLengthLimits: undefined,
+  letters: undefined,
+};
+
+const resolvePuzzleOptions = (options) => {
+  const width = options.dimensions?.width || defaultPuzzleOptions.dimensions.width;
+  const height = options.dimensions?.height || defaultPuzzleOptions.dimensions.height;
+  const dimensions = {
+    width: options.dimensions?.width ? options.dimensions.width : height,
+    height: options.dimensions?.height ? options.dimensions.height : width
+  };
+  return {
+    ...defaultPuzzleOptions,
+    ...options,
+    dimensions,
+  };
+};
 
 app.post(`${prefix}/generate`, async (req, res) => {
   try {
     const options = req.body;
-    const mergedOptions = { ...defaultPuzzleOptions, ...options };
+    const mergedOptions = resolvePuzzleOptions(options);
+    console.log('mergedOptions', mergedOptions);
+    if (mergedOptions.letters && mergedOptions.letters.length !== (mergedOptions.dimensions.width * mergedOptions.dimensions.height)) {
+      return res.status(500).send('Wrong size letter list for length: ' + mergedOptions.letters.length + ' and dimensions: ' + mergedOptions.dimensions.width + ' by ' + mergedOptions.dimensions.height);
+    }
     const puzzle = await generateBoard(mergedOptions);
     res.json(puzzle);
   } catch (error) {
     console.error(error);
-    return res.status(500).send('Error occurred while generating the puzzle ' + error.message);
+    return res.status(500).send('Puzzle creation error: ' + error.message);
   }
 });
 
