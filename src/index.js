@@ -7,47 +7,42 @@ const { generateBoard } = require('./puzzleService');
 
 const app = express();
 const port = process.env.PORT || 3000;
-
-// Use CORS middleware
-app.use(cors());
-
-// Parse JSON bodies
-app.use(express.json());
-
-// Log every request received
-app.use((req, res, next) => {
-  console.log('Received request:', req.method, req.path);
-  next(); // Continue to the next middleware or route handler
-});
-
-const testDBConnection = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('Connection has been established successfully.');
-  } catch (error) {
-    console.error('Unable to connect to the database:', error);
-  }
-};
-testDBConnection();
-
 const prefix = '/language-api';
+
+app.use(cors());
+app.use(express.json());
+// app.use((req, res, next) => {
+//   console.log('Received request:', req.method, req.path);
+//   next(); // Continue to the next middleware or route handler
+// });
 
 // check
 
-app.get(`${prefix}/check`, async (req, res) => {
-  try {
-    const wordToCheck = req.query.word;
-    if (!wordToCheck) {
-      return res.status(400).send('No word specified');
-    }
+// const testDBConnection = async () => {
+//   try {
+//     await sequelize.authenticate();
+//     console.log('Connection has been established successfully.');
+//   } catch (error) {
+//     console.error('Unable to connect to the database:', error);
+//   }
+// };
+// testDBConnection();
 
-    const wordExists = await Word.findOne({ where: { word: wordToCheck } });
-    return res.json({ exists: !!wordExists });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).send('Error occurred while checking the word ' + error.message);
-  }
-});
+
+// app.get(`${prefix}/check`, async (req, res) => {
+//   try {
+//     const wordToCheck = req.query.word;
+//     if (!wordToCheck) {
+//       return res.status(400).send('No word specified');
+//     }
+
+//     const wordExists = await Word.findOne({ where: { word: wordToCheck } });
+//     return res.json({ exists: !!wordExists });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).send('Error occurred while checking the word ' + error.message);
+//   }
+// });
 
 // generate
 

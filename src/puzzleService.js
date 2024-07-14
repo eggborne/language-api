@@ -3,8 +3,7 @@ const config = require('./config.json');
 const path = require('path');
 const fs = require('fs');
 
-const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const convertMatrix = (matrix, key = BOGGLE_LETTER_KEY) => {
+const convertMatrix = (matrix, key = config.letterKeys.boggle) => {
   const convertedMatrix = matrix.map(row =>
     row.map(cell => {
       return Object.prototype.hasOwnProperty.call(key, cell) ? key[cell] : cell;
@@ -13,66 +12,74 @@ const convertMatrix = (matrix, key = BOGGLE_LETTER_KEY) => {
   return convertedMatrix;
 };
 
-const WORD_LIST_PATH = path.join(__dirname, config.wordListFileName);
-const BOGGLE_LETTER_KEY = config.letterKeys.boggle;
-const letterFrequencies = config.letterFrequencies;
-const boggleCubeSets = config.cubeSets.boggle;
-
-const letterPoolFromFrequencyMap = (frequencyMap) => {
-  let letterList = [];
-  for (let letter in frequencyMap) {
-    for (let i = 0; i < frequencyMap[letter]; i++) {
-      letterList.push(letter);
-    }
+const letterListFromCubeSet = (cubeSet, totalCubes) => {
+  let extendedCubeSet = [...cubeSet];
+  while (extendedCubeSet.length < totalCubes) {
+    extendedCubeSet = [...extendedCubeSet, ...cubeSet];
   }
-  return letterList;
+  const cubeList = extendedCubeSet.slice(0, totalCubes).map(cube => cube[Math.floor(Math.random() * cube.length)])
+  return cubeList;
 };
 
-const weightedLetterPools = {
-  scrabble: letterPoolFromFrequencyMap(letterFrequencies['scrabble']),
-  wordsWithFriends: letterPoolFromFrequencyMap(letterFrequencies['wordsWithFriends']),
-  standardEnglish: letterPoolFromFrequencyMap(letterFrequencies['standardEnglish']),
-  modifiedEnglish: letterPoolFromFrequencyMap(letterFrequencies['modifiedEnglish']),
-  random: letterPoolFromFrequencyMap(letterFrequencies['random']),
-}
-
-const letterListFromCubeSet = (cubeSet) => {
-  return cubeSet.map(cube => cube[randomInt(0, cube.length - 1)]);
-};
-
-const shuffleArray = (array) => {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-};
-
-const getLetterList = (letterData, dimensions) => {
-  const { width, height } = dimensions;
-  let letterList;
-  if (letterData === 'boggle' && width === height && width >= 3 && width <= 6) {
-    const cubeSet = Object.values(boggleCubeSets)[width];
-    letterList = letterListFromCubeSet(cubeSet);
+const getLetterList = (letterDistribution, listLength) => {
+  if (config.cubeSets.hasOwnProperty(letterDistribution)) {
+    return letterListFromCubeSet(config.cubeSets[letterDistribution], listLength);
+  } else if (letterDistribution === 'syllables') {
+    return generateSyllables(listLength);
   } else {
-    if (letterData === 'boggle') {
-      letterList = weightedLetterPools['standardEnglish'];
-    } else {
-      letterList = weightedLetterPools[letterData];
+    const frequencyMap = config.letterFrequencyMaps[letterDistribution];
+    const letters = Object.keys(frequencyMap);
+    const cumulativeFrequencies = Object.values(frequencyMap);
+    function binarySearch(value) {
+      let start = 0;
+      let end = cumulativeFrequencies.length - 1;
+      while (start <= end) {
+        const mid = Math.floor((start + end) / 2);
+        if (cumulativeFrequencies[mid] === value) {
+          return mid;
+        } else if (cumulativeFrequencies[mid] < value) {
+          start = mid + 1;
+        } else {
+          end = mid - 1;
+        }
+      }
+      return start;
     }
+    const result = [];
+    for (let i = 0; i < listLength; i++) {
+      const random = Math.random();
+      const index = binarySearch(random);
+      result.push(letters[index]);
+    }
+    return result;
   }
-  shuffleArray(letterList);
-  letterList = letterList.slice(0, width * height);
-  return letterList;
 };
 
-let trie;
+function generateSyllables(listLength) {
+  const { onsets, nuclei, codas} = config.syllableUnits;
+  const weights = { onset: 3, nucleus: 4, coda: 2 };
+  const totalWeight = weights.onset + weights.nucleus + weights.coda;
+  const syllables = [];
+  for (let i = 0; i < listLength; i++) {
+    const randomValue = Math.random() * totalWeight;
+    if (randomValue < weights.onset) {
+      syllables.push(onsets[Math.floor(Math.random() * onsets.length)]);
+    } else if (randomValue < weights.onset + weights.nucleus) {
+      syllables.push(nuclei[Math.floor(Math.random() * nuclei.length)]);
+    } else {
+      syllables.push(codas[Math.floor(Math.random() * codas.length)]);
+    }
+  }
+  return syllables;
+}
 
 const fetchWords = async () => {
   console.warn('------ FETCHING WORD LIST');
-  const data = fs.readFileSync(WORD_LIST_PATH, 'utf8');
+  const data = fs.readFileSync(path.join(__dirname, config.wordListFileName), 'utf8');
   return JSON.parse(data);
 };
 
+let trie;
 const initializeTrie = async (wordList) => {
   const trie = new Trie();
   wordList.forEach(word => word.length > 2 && trie.insert(word));
@@ -84,11 +91,9 @@ const buildDictionary = async () => {
     console.warn('------ FETCHING WORDS AND BUILDING TRIE');
     const wordList = await fetchWords();
     trie = await initializeTrie(wordList);
-  } else {
-    console.warn('Reusing built trie')
   }
   return trie;
-}
+};
 
 const findAllWords = (options, matrix, trie) => {
   const { maximumPathLength } = options;
@@ -99,31 +104,23 @@ const findAllWords = (options, matrix, trie) => {
   ];
   const rows = matrix.length;
   const cols = matrix[0].length;
-
   const visited = new Array(rows);
   for (let i = 0; i < rows; i++) {
     visited[i] = new Array(cols).fill(false);
   }
-
   const dfs = (x, y, currentWord, currentNode) => {
     if (currentWord.length >= maximumPathLength) return;
-
-    const cellContent = matrix[x][y].toUpperCase();
+    const cellContent = matrix[x][y];
     let newNode = currentNode;
-
     for (const char of cellContent) {
       newNode = newNode.children.get(char);
       if (!newNode) return;
     }
-
     const newWord = currentWord + cellContent;
-
     if (newWord.length >= 3 && newNode.isEndOfWord) {
       validWords.add(newWord);
     }
-
     visited[x][y] = true;
-
     for (let [dx, dy] of directions) {
       const nx = x + dx;
       const ny = y + dy;
@@ -131,27 +128,26 @@ const findAllWords = (options, matrix, trie) => {
         dfs(nx, ny, newWord, newNode);
       }
     }
-
     visited[x][y] = false;
   };
-
   for (let i = 0; i < rows; i++) {
     for (let j = 0; j < cols; j++) {
       dfs(i, j, '', trie.root);
     }
   }
-
   return validWords;
 };
 
-const generateLetterMatrix = (letters, width, height) => {
+const generateLetterMatrix = (options) => {
+  const { dimensions, letterDistribution, letters } = options;
+  const { width, height } = dimensions;
+  const letterList = letters ? letters.split('') : getLetterList(letterDistribution, width * height);
   let matrix = [];
   let index = 0;
-
   for (let i = 0; i < height; i++) {
     let row = [];
     for (let j = 0; j < width; j++) {
-      row.push(letters[index]);
+      row.push(letterList[index]);
       index++;
     }
     matrix.push(row);
@@ -159,14 +155,13 @@ const generateLetterMatrix = (letters, width, height) => {
   return convertMatrix(matrix);
 };
 
-const isPuzzleValid = (wordList, options) => {
+const isWordListValid = (wordList, options) => {
   if (options.totalWordLimits) {
     const { min, max } = options.totalWordLimits;
     if ((min && wordList.length < min) || (max && wordList.length > max)) {
-      console.log(`totalWordLimit: ${wordList.length} < ${min} or ${wordList.length} > ${max}`);
+      console.log(`totalWordLimit: bad wordList.length: ${wordList.length}`);
       return false;
     }
-    // console.warn('totalWordLimit OK')
   }
 
   if (options.wordLengthLimits && Object.entries(options.wordLengthLimits).length > 0) {
@@ -174,11 +169,10 @@ const isPuzzleValid = (wordList, options) => {
       const { min = 0, max = Infinity } = limits;
       const wordsOfLength = wordList.filter(word => word.length === parseInt(wordLength)).length;
       if (wordsOfLength < min || wordsOfLength > max) {
-        console.log(`wordLengthLimits: ${wordsOfLength} < ${min} or ${wordsOfLength} > ${max}`);
+        console.log(`wordLengthLimits: bad amount of ${wordLength}-letter words: ${wordsOfLength}`);
         return false;
       }
     }
-    // console.warn('wordLengthLimits OK')
   }
 
   if (options.averageWordLengthFilter) {
@@ -186,7 +180,7 @@ const isPuzzleValid = (wordList, options) => {
     const average = wordList.join('').length / wordList.length;
     if (comparison === 'lessThan') {
       if (average > value) {
-        console.log('averageWordLengthFilter:', value, comparison, average);
+        console.log('averageWordLengthFilter: ', value, comparison, average);
         return false;
       }
     }
@@ -196,33 +190,33 @@ const isPuzzleValid = (wordList, options) => {
         return false;
       }
     }
-    // console.warn('averageWordLengthFilter OK');
   }
-
   return true;
 };
 
 const generateBoard = async (options) => {
-  const maxAttempts = 100;
+  const maxAttempts = 1;
   let attempts = 0;
+
+  await buildDictionary();
 
   while (attempts < maxAttempts) {
     attempts++;
     try {
-      const { dimensions, letterDistribution, letters } = options;
-      const letterList = letters ? letters.split('') : getLetterList(letterDistribution, dimensions);
-      const matrix = generateLetterMatrix(letterList, dimensions.width, dimensions.height);
-      await buildDictionary();
-      const wordList = Array.from(findAllWords(options, matrix, trie)).sort((a, b) => a.length - b.length);
-      if (isPuzzleValid(wordList, options)) {
+      const matrix = generateLetterMatrix(options);
+      const wordList = Array.from(findAllWords(options, matrix, trie));
+      if (isWordListValid(wordList, options)) {
         console.log(`Found valid puzzle after ${attempts} attempts`);
-        return { matrix, wordList };
+        return {
+          matrix,
+          wordList,
+        };
       }
     } catch (error) {
       console.error('Error generating board:', error);
     }
   }
-  console.error('reached end of attempts!');
+  console.error(`failed after ${attempts} attempts`);
   return undefined;
 };
 
