@@ -1,7 +1,6 @@
 .env*
-/dist
-/public
 /node_modules
 .htaccess
 *.log
 wordsonlylist.json
+commonWords.json
