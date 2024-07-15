@@ -133,7 +133,7 @@ const findAllWords = (options, matrix, trie) => {
     }
   }
   let percentUncommon = Math.round((uncommonWords.size / validWords.size) * 100);
-  console.log(`findAllWords found ${uncommonWords.size} uncommon words - ${percentUncommon}% are uncommon`);
+  console.log(`findAllWords found ${uncommonWords.size}/${validWords.size} uncommon words - ${percentUncommon}% are uncommon`);
   return { validWords, percentUncommon };
 };
 
@@ -165,25 +165,6 @@ const isWordListValid = (wordList, options) => {
     if ((min && wordList.length < min) || (max && wordList.length > max)) {
       console.log(`totalWordLimit: bad wordList.length: ${wordList.length}`);
       return false;
-    }
-  }
-
-  if (options.uncommonWordLimit) {
-    const uncommonWords = [];
-    for (let i = 0; i < wordList.length; i++) {
-      const word = wordList[i];
-      if (!commonWords[word.length].includes(word)) {
-        uncommonWords.push(word);
-      }
-    }
-    const uncommonWordAmount = uncommonWords.length;
-    const percentageUncommon = Math.round((uncommonWordAmount / wordList.length) * 100);
-    console.log(`Found ${uncommonWordAmount}/${wordList.length} uncommon words - ${percentageUncommon}% are uncommon. options.uncommonWordLimit is ${options.uncommonWordLimit}`);
-    if (percentageUncommon > options.uncommonWordLimit) {
-      console.error('too many uncommon words!');
-      return false;
-    } else {
-      console.log(`I am seriously saying that ${percentageUncommon} is less than ${options.uncommonWordLimit}...?`)
     }
   }
 
@@ -246,28 +227,33 @@ const resolvePuzzleOptions = (options) => {
 
 const generateBoard = async (options) => {
   options = resolvePuzzleOptions(options);
-  console.log('got options', options);
-  const maxAttempts = 1;
+  const maxAttempts = 500;
   let attempts = 0;
   if (!trie) await buildDictionary();
   while (attempts < maxAttempts) {
+    console.log(`\nAttempt ${attempts} --------------------------------\n`);
     attempts++;
     try {
       const matrixData = generateLetterMatrix(options);
       const matrix = matrixData.matrix;
       const findResults = await findAllWords(options, matrix, trie);
-      const wordList = Array.from(findResults.validWords).sort((a, b) => a.length - b.length);
-      if (isWordListValid(wordList, options)) {
-        console.log(`Found valid puzzle after ${attempts} attempts`);
-        return {
-          matrix,
-          wordList,
-          metadata: {
-            dateCreated: Date.now(),
-            key: matrixData.key,
-            percentUncommon: findResults.percentUncommon,
-          },
-        };
+      if (false && options.uncommonWordLimit && findResults.percentUncommon > options.uncommonWordLimit) {
+        console.error('too many uncommon!')
+        continue;
+      } else {
+        const wordList = Array.from(findResults.validWords).sort((a, b) => a.length - b.length);
+        if (isWordListValid(wordList, options)) {
+          console.log(`Found valid puzzle after ${attempts} attempts`);
+          return {
+            matrix,
+            wordList,
+            metadata: {
+              dateCreated: Date.now(),
+              key: matrixData.key,
+              percentUncommon: findResults.percentUncommon,
+            },
+          };
+        }
       }
     } catch (error) {
       console.error('Error generating board:', error);
