@@ -159,59 +159,70 @@ const generateLetterMatrix = (options) => {
   return { matrix, key };
 };
 
-const isWordListValid = (wordList, options) => {
-  if (options.totalWordLimits) {
-    const { min, max } = options.totalWordLimits;
-    if ((min && wordList.length < min) || (max && wordList.length > max)) {
-      console.log(`totalWordLimit: bad wordList.length: ${wordList.length}`);
+const isWordListValid = (wordList, metadata, filters) => {
+  if (!filters) return true;
+  console.log('------ applying filters', filters);
+  const { uncommonWordLimit, totalWordLimits, averageWordLengthFilter, wordLengthLimits } = filters;
+
+  // pecentage of umcommon words
+  if (uncommonWordLimit) {
+    const { comparison, value } = uncommonWordLimit;
+    const tooMany = comparison === 'lessThan' && metadata.percentUncommon > value;
+    const tooFew = comparison === 'moreThan' && metadata.percentUncommon < value;
+    if (tooMany || tooFew) {
+      console.error('too many/few uncommon:', metadata.percentUncommon);
       return false;
     }
   }
+  // total amount of words
+  if (totalWordLimits) {
+    const { min, max } = totalWordLimits;
+    if ((min && wordList.length < min) || (max && wordList.length > max)) {
+      console.log(`wordList bad length: ${wordList.length}`);
+      return false;
+    }
+  }
+  // average word length
+  if (averageWordLengthFilter) {
+    const { comparison, value } = averageWordLengthFilter;
+    const average = wordList.reduce((sum, word) => sum + word.length, 0) / wordList.length;
+    if (comparison === 'lessThan' && average > value
+      || comparison === 'moreThan' && average < value
+    ) {
+      console.log('averageWordLengthFilter: ', value, comparison, average);
+      return false;
+    }
+  }
+  // amounts of each word length
 
-  if (options.wordLengthLimits && Object.entries(options.wordLengthLimits).length > 0) {
-    for (const [wordLength, limits] of Object.entries(options.wordLengthLimits)) {
-      const { min = 0, max = Infinity } = limits;
-      const wordsOfLength = wordList.filter(word => word.length === parseInt(wordLength)).length;
-      if (wordsOfLength < min || wordsOfLength > max) {
-        console.log(`wordLengthLimits: bad amount of ${wordLength}-letter words: ${wordsOfLength}`);
-        return false;
-      }
+  for (let i = 0; i < wordLengthLimits.length; i++) {
+    const { wordLength, comparison, value } = wordLengthLimits[i];
+    const wordsOfLength = wordList.filter(word => word.length === parseInt(wordLength)).length;
+    if (comparison === 'lessThan' && wordsOfLength > value) {
+      console.log(`wordLengthLimits: bad amount of ${wordLength}-letter words: ${wordsOfLength}`);
+      return false;
+    } else if (comparison === 'moreThan' && wordsOfLength < value) {
+      console.log(`wordLengthLimits: bad amount of ${wordLength}-letter words: ${wordsOfLength}`);
+      return false;
+    } else {
+      console.log(`wordLengthLimits: OK amount of ${wordLength}-letter words: ${wordsOfLength}`);
     }
   }
 
-  if (options.averageWordLengthFilter) {
-    const { comparison, value } = options.averageWordLengthFilter;
-    const average = wordList.join('').length / wordList.length;
-    if (comparison === 'lessThan') {
-      if (average > value) {
-        console.log('averageWordLengthFilter: ', value, comparison, average);
-        return false;
-      }
-    }
-    if (comparison === 'moreThan') {
-      if (average < value) {
-        console.log('averageWordLengthFilter:', value, comparison, average);
-        return false;
-      }
-    }
-  }
   return true;
 };
 
 const resolvePuzzleOptions = (options) => {
   const defaultPuzzleOptions = {
-    uncommonWordLimit: undefined,
-    dimensions: { width: 4, height: 4 },
+    dimensions: { width: 5, height: 5 },
     letterDistribution: 'scrabble',
     maximumPathLength: 20,
-    averageWordLengthFilter: undefined,
-    totalWordLimits: undefined,
-    wordLengthLimits: undefined,
-    letters: undefined,
+    maxAttempts: 1,
   };
   if (options.letters && options.letters.length !== (options.dimensions.width * options.dimensions.height)) {
     return res.status(500).send('Wrong size letter list for length: ' + mergedOptions.letters.length + ' and dimensions: ' + mergedOptions.dimensions.width + ' by ' + mergedOptions.dimensions.height);
   }
+  const maxAttempts = options.maxAttempts || defaultPuzzleOptions.maxAttempts;
   const width = options.dimensions?.width || defaultPuzzleOptions.dimensions.width;
   const height = options.dimensions?.height || defaultPuzzleOptions.dimensions.height;
   const dimensions = {
@@ -221,39 +232,38 @@ const resolvePuzzleOptions = (options) => {
   return {
     ...defaultPuzzleOptions,
     ...options,
+    maxAttempts,
     dimensions,
   };
 };
 
 const generateBoard = async (options) => {
+  console.log('received options', options);
   options = resolvePuzzleOptions(options);
-  const maxAttempts = 500;
+  console.log('resolved options', options);
+  const maxAttempts = options.maxAttempts;
   let attempts = 0;
   if (!trie) await buildDictionary();
   while (attempts < maxAttempts) {
-    console.log(`\nAttempt ${attempts} --------------------------------\n`);
     attempts++;
+    console.log(`\nAttempt ${attempts} --------------------------------\n`);
     try {
       const matrixData = generateLetterMatrix(options);
       const matrix = matrixData.matrix;
-      const findResults = await findAllWords(options, matrix, trie);
-      if (false && options.uncommonWordLimit && findResults.percentUncommon > options.uncommonWordLimit) {
-        console.error('too many uncommon!')
-        continue;
-      } else {
-        const wordList = Array.from(findResults.validWords).sort((a, b) => a.length - b.length);
-        if (isWordListValid(wordList, options)) {
-          console.log(`Found valid puzzle after ${attempts} attempts`);
-          return {
-            matrix,
-            wordList,
-            metadata: {
-              dateCreated: Date.now(),
-              key: matrixData.key,
-              percentUncommon: findResults.percentUncommon,
-            },
-          };
-        }
+      const findResults = findAllWords(options, matrix, trie);
+      const wordList = Array.from(findResults.validWords);
+      const metadata = {
+        dateCreated: Date.now(),
+        key: matrixData.key,
+        percentUncommon: findResults.percentUncommon,
+      };
+      if (isWordListValid(wordList, metadata, options.filters)) {
+        console.log(`Found valid puzzle after ${attempts} attempts`);
+        return {
+          matrix,
+          wordList,
+          metadata,
+        };
       }
     } catch (error) {
       console.error('Error generating board:', error);
