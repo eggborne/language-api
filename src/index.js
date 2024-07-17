@@ -14,11 +14,22 @@ app.use(express.json());
 app.post(`${prefix}/generateBoggle`, async (req, res) => {
   try {
     const options = req.body;
+    const genStart = Date.now();
     const puzzle = await generateBoard(options);
-    if (puzzle) {
-      res.json(puzzle);
+    const serverDuration = Date.now() - genStart;
+    if (puzzle.data) {
+    // if (puzzle.valid) {
+      res.json({
+        success: true,
+        message: `${puzzle.message} (server took ${serverDuration}ms)`,
+        data: { ...puzzle.data, serverDuration }
+      });
     } else {
-      return res.status(500).send('Too many attempts');
+      res.status(400).json({
+        success: false,
+        message: `${puzzle.message} (server took ${serverDuration}ms)`,
+        data: { serverDuration }
+      });
     }
   } catch (error) {
     console.error(error);
