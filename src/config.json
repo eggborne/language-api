@@ -22,5 +22,15 @@
     "codas": [ "b", "c", "d", "f", "g", "k", "l", "m", "n", "p", "r", "s", "t", "v", "w", "x", "y", "z", "ğ", "ē", "ġ", "Ñ", "ī", "ł", "ĭ", "ő", "ŀ", "ł", "Ā", "ņ", "ň", "ő", "ŕ", "ř", "ś", "ř", "ß", "ŝ", "ş", "š", "ñ", "ò", "ð", "ť", "Ě", "ú", "ô", "ŧ", "ą", "ă", "Ċ", "č", "Ĩ" ]
   },
   "fullWordListFilePath": "./wordsonlylist.json",
-  "commonWordListFilePath": "./commonWords.json"
+  "commonWordListFilePath": "./commonWords.json",
+  "defaultOptions": {
+    "dimensions": {
+      "width": 4,
+      "height": 4
+    },
+    "letterDistribution": "scrabble",
+    "maximumPathLength": 20,
+    "maxAttempts": 1,
+    "returnBest": true
+  }
 }

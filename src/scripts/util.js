@@ -110,7 +110,7 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
     }
 
     if (disparity.newPuzzle < disparity.oldPuzzle) {
-      // console.log('newPuzzle has better totalWordLimits:', 'new', listLengthB, 'vs old', listLengthA);
+      console.log('newPuzzle has better totalWordLimits:', 'new', listLengthB, 'vs old', listLengthA);
       increasesForPuzzle.totalWordLimits++;
       categoryWinners.totalWordLimits = newPuzzle;
     }
@@ -157,6 +157,20 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
   return { preferred, newIncreases };
 };
 
-module.exports = { comparePuzzleData };
+const stringTo2DArray = (input, width, height) => {
+  const result = [];
+  let index = 0;
+  for (let i = 0; i < height; i++) {
+    const row = [];
+    for (let j = 0; j < width; j++) {
+      row.push(input[index]);
+      index++;
+    }
+    result.push(row);
+  }
+  return result;
+}
+
+module.exports = { comparePuzzleData, stringTo2DArray };
 
 
