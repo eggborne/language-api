@@ -18,7 +18,6 @@ app.post(`${prefix}/generateBoggle`, async (req, res) => {
     const puzzle = await generateBoard(options);
     const serverDuration = Date.now() - genStart;
     if (puzzle.data) {
-      // if (puzzle.valid) {
       res.json({
         success: true,
         message: `${puzzle.message} (server took ${serverDuration}ms)`,

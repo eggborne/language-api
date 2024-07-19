@@ -279,8 +279,9 @@ const getValidityData = (wordList, metadata, options) => {
 };
 
 const resolvePuzzleOptions = (options) => {
-  options = { ...options, ...defaultOptions };
+  options = { ...defaultOptions, ...options};
   const { width: userWidth, height: userHeight } = options.dimensions;
+  console.log('width', userWidth, 'height', userHeight);
   const width = userWidth || defaultOptions.dimensions.width;
   const height = userHeight || defaultOptions.dimensions.height;
   const dimensions = {
@@ -347,7 +348,7 @@ const solveBoggle = async (letterString) => {
 };
 
 const generateBoard = async (options) => {
-  console.log('defaultOptions', config.defaultOptions);
+  console.log('defaultOptions', defaultOptions);
   console.log('received options', options);
   options = resolvePuzzleOptions(options);
   if (options.customizations) {
