@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 class TrieNode {
   constructor() {
     this.children = new Map();
@@ -21,27 +23,18 @@ class Trie {
     currentNode.isEndOfWord = true;
   }
 
-  search(word) {
-    let currentNode = this.root;
-    for (const char of word) {
-      if (!currentNode.children.has(char)) {
-        return false;
-      }
-      currentNode = currentNode.children.get(char);
+  async loadWordListFromBinary(filePath) {
+    const buffer = await fs.promises.readFile(filePath);
+    let offset = 0;
+    while (offset < buffer.length) {
+      const length = buffer.readInt8(offset);
+      const word = buffer.toString('utf8', offset + 1, offset + 1 + length);
+      this.insert(word);
+      offset += 1 + length;
     }
-    return currentNode.isEndOfWord;
-  }
-
-  searchPrefix(prefix) {
-    let currentNode = this.root;
-    for (const char of prefix) {
-      currentNode = currentNode.children.get(char);
-      if (!currentNode) {
-        return false;
-      }
-    }
-    return currentNode;
   }
 }
+
+console.log('------------------------------------>>>>>>>>>>>>>> trie ran')
 
 module.exports = { Trie };

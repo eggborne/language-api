@@ -133,7 +133,7 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
       oldPuzzle.validityData.fullListLength, 'total',
       oldPuzzle.validityData.percentUncommon + '% unc',
       (oldPuzzle.puzzleData.metadata.averageWordLength).toFixed(2), 'avg',
-      JSON.stringify(oldPuzzle.validityData.wordLengthAmounts),      
+      JSON.stringify(oldPuzzle.validityData.wordLengthAmounts),
       '------->', `${options.dimensions.width}${options.dimensions.height}${oldPuzzle.puzzleData.matrix.flat(2).join('')}`
     ), '\n\n';
     console.log(
@@ -141,7 +141,7 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
       preferred.validityData.fullListLength, 'total',
       preferred.validityData.percentUncommon + '% unc',
       (preferred.puzzleData.metadata.averageWordLength).toFixed(2), 'avg',
-      JSON.stringify(preferred.validityData.wordLengthAmounts),      
+      JSON.stringify(preferred.validityData.wordLengthAmounts),
       '------->', `${options.dimensions.width}${options.dimensions.height}${preferred.puzzleData.matrix.flat(2).join('')}`
     ) + '\n';
   }
@@ -169,8 +169,39 @@ const stringTo2DArray = (input, width, height) => {
     result.push(row);
   }
   return result;
-}
+};
 
-module.exports = { comparePuzzleData, stringTo2DArray };
+
+const decodeMatrix = (matrix, key) => {
+  const convertedMatrix = matrix.map(row =>
+    row.map(cell => {
+      return Object.prototype.hasOwnProperty.call(key, cell) ? key[cell] : cell;
+    })
+  );
+  return convertedMatrix;
+};
+
+const decodeList = (list, key) => (list.map(item => key[item] || item));
+
+const encodeMatrix = (matrix, key) => {
+  if (!key) return matrix;
+  const reversedKey = Object.fromEntries(
+    Object.entries(key).map(([k, v]) => [v, k])
+  );
+
+  const unconvertedMatrix = matrix.map(row =>
+    row.map(cell => {
+      cell = cell.toLowerCase();
+      return Object.prototype.hasOwnProperty.call(reversedKey, cell) ? reversedKey[cell] : cell;
+    })
+  );
+  return unconvertedMatrix;
+};
+
+
+
+console.log('------------------------------------>>>>>>>>>>>>>> util ran')
+
+module.exports = { comparePuzzleData, decodeList, decodeMatrix, encodeMatrix, stringTo2DArray };
 
 

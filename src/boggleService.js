@@ -1,43 +1,19 @@
 const { Trie } = require('./scripts/trie');
 const config = require('./config.json');
+const path = require('path');
 const {
   cubeSets,
   letterFrequencyMaps,
   letterKeys,
   syllableUnits,
-  fullWordListFilePath,
+  wordListFilePath,
   commonWordListFilePath,
   defaultOptions,
 } = config;
 const commonWords = require(commonWordListFilePath);
-const path = require('path');
-const fs = require('fs');
-const { comparePuzzleData } = require('./scripts/util');
-
-const decodeMatrix = (matrix, key) => {
-  const convertedMatrix = matrix.map(row =>
-    row.map(cell => {
-      return Object.prototype.hasOwnProperty.call(key, cell) ? key[cell] : cell;
-    })
-  );
-  return convertedMatrix;
-};
-
-const encodeMatrix = (matrix, key) => {
-  if (!key) return matrix;
-  console.log('encoding matrix', matrix);
-  console.log('emcoding with', key);
-  const reversedKey = Object.fromEntries(
-    Object.entries(key).map(([k, v]) => [v, k])
-  );
-
-  const unconvertedMatrix = matrix.map(row =>
-    row.map(cell => {
-      cell = cell.toLowerCase();
-      return Object.prototype.hasOwnProperty.call(reversedKey, cell) ? reversedKey[cell] : cell;
-    })
-  );
-  return unconvertedMatrix;
+const { comparePuzzleData, decodeMatrix } = require('./scripts/util');
+const filePaths = {
+  wordList: path.join(__dirname, wordListFilePath),
 };
 
 const letterListFromCubeSet = (cubeSet, totalCubes) => {
@@ -103,20 +79,42 @@ function generateSyllables(listLength) {
 
 let trie;
 
-const initializeTrie = (wordList) => {
-  const trie = new Trie();
-  wordList.forEach(word => word.length > 2 && trie.insert(word));
-  return trie;
-};
+
+async function convertJsonToBinary(jsonFilePath, binaryFilePath) {
+  // Read the JSON file
+  const jsonData = await fs.promises.readFile(jsonFilePath, 'utf8');
+
+  // Parse the JSON data
+  const words = JSON.parse(jsonData);
+
+  // Open a writable stream for the binary file
+  const writer = fs.createWriteStream(binaryFilePath);
+
+  // Process each word
+  words.forEach(word => {
+    // Create a buffer for the length (1 byte) + word
+    const wordBuffer = Buffer.from(word, 'utf8');
+    const lengthBuffer = Buffer.alloc(1);
+    lengthBuffer.writeUInt8(wordBuffer.length, 0);
+
+    // Write the length and the word to the binary file
+    writer.write(lengthBuffer);
+    writer.write(wordBuffer);
+  });
+
+  // Close the stream
+  writer.end();
+}
+
+
+
+
 
 const buildDictionary = async () => {
-  console.warn('------ FETCHING WORDS AND BUILDING TRIE');
-  const startList = Date.now();
-  const fullWordList = await JSON.parse(fs.readFileSync(path.join(__dirname, fullWordListFilePath), 'utf8'));
-  console.warn(`--> Got ${fullWordList.length} words from full list in ${Date.now() - startList}ms`);
   const startTrie = Date.now();
-  trie = initializeTrie(fullWordList);
-  console.warn(`--> Built trie in ${Date.now() - startTrie}ms`);
+  trie = new Trie();
+  await trie.loadWordListFromBinary(filePaths.wordList);
+  console.warn(`${Date.now() - startTrie}ms ------> Built trie`);
   return trie;
 };
 
@@ -279,7 +277,7 @@ const getValidityData = (wordList, metadata, options) => {
 };
 
 const resolvePuzzleOptions = (options) => {
-  options = { ...defaultOptions, ...options};
+  options = { ...defaultOptions, ...options };
   const { width: userWidth, height: userHeight } = options.dimensions;
   console.log('width', userWidth, 'height', userHeight);
   const width = userWidth || defaultOptions.dimensions.width;
@@ -323,10 +321,6 @@ const solveBoggle = async (letterString) => {
 
   console.log('parsed dimensions', width, height);
 
-  // const wrongSizeMessage = `Wrong size letter list for length: ${customLetters.length} (need ${width * height})`;
-  // console.error(wrongSizeMessage);
-  // return { message: wrongSizeMessage };
-
   const matrix = [];
   let index = 0;
   for (let i = 0; i < height; i++) {
@@ -344,7 +338,7 @@ const solveBoggle = async (letterString) => {
       wordList: Array.from(wordList)
     },
     message: `Solved ${width}x${height} ${matrix.flat().join('')}`,
-  }
+  };
 };
 
 const generateBoard = async (options) => {
@@ -355,11 +349,6 @@ const generateBoard = async (options) => {
     const { customLetters, requiredWords } = options.customizations;
     const totalNeeded = options.dimensions.width * options.dimensions.height;
     if (customLetters.length !== totalNeeded) {
-
-      // const wrongSizeMessage = `Wrong size letter list for length: ${customLetters.length} (need ${width * height})`;
-      // console.error(wrongSizeMessage);
-      // return { message: wrongSizeMessage };
-
       let correctedLetterString = '';
       const lettersShort = (totalNeeded > customLetters.length) ? (totalNeeded - customLetters.length) : 0;
       if (lettersShort) {
@@ -414,7 +403,7 @@ const generateBoard = async (options) => {
           data: puzzleData,
           valid: true,
         };
-        console.log('>> breaking while loop due to found qualifying word');
+        console.log('>> breaking while loop due to found qualifying puzzle');
         break;
       } else {
         if (options.returnBest) {
@@ -473,11 +462,12 @@ const generateBoard = async (options) => {
   }
 
   console.log(`\nReached the end of generateBoard.\n`);
-  console.log('sending result.message', result.message);
-  console.log(`\n\n`);
+  console.log('Sending result.message', result.message), '\n';
   return result;
 };
 
 if (!trie) buildDictionary();
+
+console.log('------------------------------------>>>>>>>>>>>>>> boggleService ran')
 
 module.exports = { generateBoard, solveBoggle };
