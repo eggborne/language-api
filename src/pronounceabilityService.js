@@ -223,6 +223,6 @@ function isPronounceable(word) {
   }
 }
 
-console.log('------------------------------------>>>>>>>>>>>>>> pronounceabilityService ran');
+// console.log('------------------------------------>>>>>>>>>>>>>> pronounceabilityService ran');
 
 module.exports = { isPronounceable };

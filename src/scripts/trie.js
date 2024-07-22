@@ -35,6 +35,6 @@ class Trie {
   }
 }
 
-console.log('------------------------------------>>>>>>>>>>>>>> trie ran')
+// console.log('------------------------------------>>>>>>>>>>>>>> trie ran')
 
 module.exports = { Trie };

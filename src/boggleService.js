@@ -11,7 +11,7 @@ const {
   defaultOptions,
 } = config;
 const commonWords = require(commonWordListFilePath);
-const { comparePuzzleData, decodeMatrix } = require('./scripts/util');
+const { comparePuzzleData, shuffleArray, decodeList, encodeList } = require('./scripts/util');
 const filePaths = {
   wordList: path.join(__dirname, wordListFilePath),
 };
@@ -119,7 +119,6 @@ const buildDictionary = async () => {
 };
 
 const findAllWords = (matrix, trie) => {
-  // const { maximumPathLength } = options;
   const maximumPathLength = 20;
   const validWords = new Set();
   const directions = [
@@ -163,39 +162,164 @@ const findAllWords = (matrix, trie) => {
   return validWords;
 };
 
+const minimumBoggleUnits = (words) => {
+  return Object.entries(
+    words.flatMap(word => [...new Set(word)])
+      .reduce((acc, unit) => {
+        acc[unit] = Math.max(acc[unit] || 0, words.reduce((max, word) => {
+          const count = word.filter(u => u === unit).length;
+          return Math.max(max, count);
+        }, 0));
+        return acc;
+      }, {})
+  ).flatMap(([unit, count]) => Array(count).fill(unit));
+};
+
 const generateLetterMatrix = (options) => {
   const { dimensions, letterDistribution, customizations } = options;
   const { width, height } = dimensions;
-
+  const totalCells = width * height;
   let letterList;
-  if (customizations) {
-    console.log('using customizations', customizations);
-    letterList = customizations.customLetters.split('');
-  } else {
-    letterList = getLetterList(letterDistribution, width * height);
+  let placedWords = [];
 
-  }
-  let matrix = [];
-  let index = 0;
-  for (let i = 0; i < height; i++) {
-    let row = [];
-    for (let j = 0; j < width; j++) {
-      row.push(letterList[index]);
-      index++;
+  if (customizations) {
+    const { customLetters, requiredWords } = customizations;
+    if (customLetters) {
+      const { letterList: userLetterList, convertQ, shuffle } = customLetters;
+      letterList = userLetterList;
+      if (convertQ) {
+        const encodedLetterList = encodeList(userLetterList, { 'qu': 'q' });
+        const convertedLetterList = decodeList(encodedLetterList, { 'q': 'qu' });
+        if (userLetterList.length > convertedLetterList.length) {
+          const lettersShort = userLetterList.length - convertedLetterList.length;
+          letterList = [
+            ...convertedLetterList,
+            ...getLetterList(defaultOptions.letterDistribution, lettersShort)
+          ];
+        } else {
+          letterList = convertedLetterList;
+        }
+      }
+      if (shuffle) {
+        letterList = shuffleArray(letterList);
+      }
+    } else if (requiredWords) {
+      const { wordList, convertQ } = requiredWords;
+      let letterCollectionList = wordList.map(wordString => wordString.toLowerCase().split(''));
+      if (convertQ) {
+        letterCollectionList = letterCollectionList.map(wordArray => {
+          const encodedwordLetterList = encodeList(wordArray, { 'qu': 'q' });
+          const letterCollection = decodeList(encodedwordLetterList, { 'q': 'qu' });
+          return letterCollection;
+        });
+      }
+      const reqWordLetters = minimumBoggleUnits(letterCollectionList);
+      const lettersNeeded = totalCells - reqWordLetters.length;
+      letterList = [
+        ...getLetterList(letterDistribution, lettersNeeded),
+        ...shuffleArray(reqWordLetters)
+      ];
     }
-    matrix.push(row);
-  }
-  let key;
-  if (letterKeys.hasOwnProperty(letterDistribution)) {
-    key = letterKeys[letterDistribution];
   } else {
-    key = { 'q': 'Qu' };
+    if (letterKeys.hasOwnProperty(letterDistribution)) {
+      const letterKey = letterKeys[letterDistribution];
+      letterList = decodeList(getLetterList(letterDistribution, totalCells), letterKey);
+    } else {
+      console.log('no key found!');
+    }
   }
-  matrix = decodeMatrix(matrix, key);
-  return { matrix, key };
+
+  const matrix = Array.from({ length: height }, () => Array(width).fill(null));
+
+  const directions = [
+    [0, 1], [1, 0], [0, -1], [-1, 0],
+    [-1, -1], [1, 1], [-1, 1], [1, -1]
+  ];
+
+  const canPlaceWordDFS = (matrix, word, x, y, index, visited, path) => {
+    if (index === word.length) return true;
+    if (x < 0 || y < 0 || x >= height || y >= width || matrix[x][y] && matrix[x][y] !== word[index] || visited.has(`${x},${y}`)) return false;
+    visited.add(`${x},${y}`);
+    path.push([x, y]);
+    const shuffledDirections = shuffleArray(directions.slice());
+    for (const [dx, dy] of shuffledDirections) {
+      if (canPlaceWordDFS(matrix, word, x + dx, y + dy, index + 1, visited, path)) {
+        matrix[x][y] = word[index];
+        return true;
+      }
+    }
+    visited.delete(`${x},${y}`);
+    path.pop();
+    return false;
+  };
+
+  const placeWordErratically = (matrix, word) => {
+    for (let attempts = 0; attempts < 100; attempts++) {
+      const x = Math.floor(Math.random() * height);
+      const y = Math.floor(Math.random() * width);
+      const path = [];
+      if (canPlaceWordDFS(matrix, word, x, y, 0, new Set(), path)) {
+        path.forEach(([px, py], i) => {
+          console.log('placing', word[i], 'of word', word);
+          matrix[px][py] = word[i];
+        });
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (customizations && customizations.requiredWords) {
+    const { wordList, convertQ } = customizations.requiredWords;
+    const remainingLetters = [];
+    let wordLetterArrayList = wordList.map(wordString => wordString.toLowerCase().split(''));
+    if (convertQ) {
+      let letterCollectionList = wordList.map(wordString => wordString.toLowerCase().split('')).map(wordArray => {
+        const encodedwordLetterList = encodeList(wordArray, { 'qu': 'q' });
+        const letterCollection = decodeList(encodedwordLetterList, { 'q': 'qu' });
+        return letterCollection;
+      });
+      wordLetterArrayList = letterCollectionList;
+    }
+
+    for (const word of wordLetterArrayList) {
+      if (!placeWordErratically(matrix, word)) {
+        throw new Error(`Failed to place required word: ${word}`);
+      } else {
+        placedWords.push(word);
+      }
+    }
+
+    // Collect all remaining null positions
+    for (let i = 0; i < height; i++) {
+      for (let j = 0; j < width; j++) {
+        if (!matrix[i][j]) {
+          remainingLetters.push({ x: i, y: j });
+        }
+      }
+    }
+
+    // Shuffle the remaining letters list
+    const shuffledRemainingLetters = shuffleArray(remainingLetters);
+    let letterIndex = 0;
+    for (const { x, y } of shuffledRemainingLetters) {
+      matrix[x][y] = letterList[letterIndex++];
+    }
+  } else {
+    let letterIndex = 0;
+    for (let i = 0; i < height; i++) {
+      for (let j = 0; j < width; j++) {
+        if (!matrix[i][j]) {
+          matrix[i][j] = letterList[letterIndex++];
+        }
+      }
+    }
+  }
+  return matrix;
 };
 
-const getPuzzleMetadata = (wordList, matrixData) => {
+
+const getPuzzleMetadata = (wordList) => {
   const result = {
     dateCreated: Date.now(),
   };
@@ -206,7 +330,6 @@ const getPuzzleMetadata = (wordList, matrixData) => {
   }
   let commonRatio = commonFromList.flat().length / wordList.size;
   result.percentUncommon = 100 - Math.round(commonRatio * 100);
-  matrixData.key && (result.key = matrixData.key);
   return result;
 };
 
@@ -279,17 +402,39 @@ const getValidityData = (wordList, metadata, options) => {
 const resolvePuzzleOptions = (options) => {
   options = { ...defaultOptions, ...options };
   const { width: userWidth, height: userHeight } = options.dimensions;
-  console.log('width', userWidth, 'height', userHeight);
   const width = userWidth || defaultOptions.dimensions.width;
   const height = userHeight || defaultOptions.dimensions.height;
-  const dimensions = {
+  options.dimensions = {
     width: userWidth || height,
     height: userHeight || width
   };
+  if (options.customizations) {
+    if (options.customizations.customLetters) {
+      const { letterList, shuffle } = options.customizations.customLetters;
+      const totalNeeded = options.dimensions.width * options.dimensions.height;
+      if (letterList.length < totalNeeded) {
+        let correctedLetterString = '';
+        const lettersShort = (totalNeeded > letterList.length) ? (totalNeeded - letterList.length) : 0;
+        if (lettersShort) {
+          correctedLetterString;
+          options.customizations.customLetters.letterList =
+            [
+              ...letterList,
+              ...getLetterList(defaultOptions.letterDistribution, lettersShort)
+            ];
+        } else {
+          options.customizations.customLetters.letterList.length = totalNeeded;
+        }
+      }
+      if (!shuffle) {
+        options.returnBest = false;
+      }
+    }
+
+  }
   return {
     ...defaultOptions,
     ...options,
-    dimensions,
   };
 };
 
@@ -342,23 +487,8 @@ const solveBoggle = async (letterString) => {
 };
 
 const generateBoard = async (options) => {
-  console.log('defaultOptions', defaultOptions);
   console.log('received options', options);
   options = resolvePuzzleOptions(options);
-  if (options.customizations) {
-    const { customLetters, requiredWords } = options.customizations;
-    const totalNeeded = options.dimensions.width * options.dimensions.height;
-    if (customLetters.length !== totalNeeded) {
-      let correctedLetterString = '';
-      const lettersShort = (totalNeeded > customLetters.length) ? (totalNeeded - customLetters.length) : 0;
-      if (lettersShort) {
-        correctedLetterString += customLetters + getLetterList(defaultOptions.letterDistribution, lettersShort).join('');
-      } else {
-        correctedLetterString += customLetters.slice(0, totalNeeded);
-      }
-      options.customizations.customLetters = correctedLetterString;
-    }
-  }
   console.log('\nGenerating with resolved options\n', options);
   const maxAttempts = options.maxAttempts;
   let bestSoFar;
@@ -376,15 +506,20 @@ const generateBoard = async (options) => {
     if (attempts % tickerTime === 0)
       console.log(`                                                                                            Attempt ${attempts}`);
     try {
-      const matrixData = generateLetterMatrix(options);
-      const matrix = matrixData.matrix;
+      const matrix = generateLetterMatrix(options);
+      if (!matrix) {
+        result = {
+          ...result,
+          message: 'Failed to generate a matrix.'
+        };
+        return result;
+      }
       const findResultsSet = findAllWords(matrix, trie);
-      const metadata = getPuzzleMetadata(findResultsSet, matrixData);
+      const metadata = getPuzzleMetadata(findResultsSet, matrix);
       const wordListArray = Array.from(findResultsSet);
       const validityData = getValidityData(wordListArray, metadata, options);
       metadata.averageWordLength = validityData.averageWordLength;
 
-      // maybe declare this in the if below
       const puzzleData = {
         matrix,
         wordList: wordListArray,
@@ -441,10 +576,17 @@ const generateBoard = async (options) => {
   const attString = `${attempts} attempt${attempts > 1 ? 's' : ''}`;
   const revString = `${revisions} revision${revisions > 1 ? 's' : ''}`;
 
+  if (options.customizations) {
+    result.data.customizations = options.customizations;
+  }
+  if (options.filters) {
+    result.data.filters = options.filters;
+  }
+
   if (result && result.valid) {
     result = {
       ...result,
-      message: `Found valid puzzle after ${attempts} ${attString} and ${revString}.`,
+      message: `Found valid puzzle after ${attString} and ${revString}.`,
     };
   } else {
     if (options.returnBest) {
@@ -461,13 +603,12 @@ const generateBoard = async (options) => {
     }
   }
 
-  console.log(`\nReached the end of generateBoard.\n`);
-  console.log('Sending result.message', result.message), '\n';
+  console.log('Sending result.message:', result.message), '\n';
   return result;
 };
 
 if (!trie) buildDictionary();
 
-console.log('------------------------------------>>>>>>>>>>>>>> boggleService ran')
+// console.log('------------------------------------>>>>>>>>>>>>>> boggleService ran')
 
 module.exports = { generateBoard, solveBoggle };

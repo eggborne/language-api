@@ -58,7 +58,7 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
       violationAmounts.newPuzzle = averageForB <= value ? Math.abs(averageForB - value) : 0;
     }
     if (violationAmounts.newPuzzle < violationAmounts.oldPuzzle) {
-      console.log('newPuzzle has better averageWordLengthFilter');
+      // console.log('newPuzzle has better averageWordLengthFilter');
       increasesForPuzzle.averageWordLengthFilter++;
       categoryWinners.averageWordLengthFilter = newPuzzle;
 
@@ -110,7 +110,7 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
     }
 
     if (disparity.newPuzzle < disparity.oldPuzzle) {
-      console.log('newPuzzle has better totalWordLimits:', 'new', listLengthB, 'vs old', listLengthA);
+      // console.log('newPuzzle has better totalWordLimits:', 'new', listLengthB, 'vs old', listLengthA);
       increasesForPuzzle.totalWordLimits++;
       categoryWinners.totalWordLimits = newPuzzle;
     }
@@ -157,6 +157,15 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
   return { preferred, newIncreases };
 };
 
+const shuffleArray = (arr) => {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 const stringTo2DArray = (input, width, height) => {
   const result = [];
   let index = 0;
@@ -182,6 +191,14 @@ const decodeMatrix = (matrix, key) => {
 };
 
 const decodeList = (list, key) => (list.map(item => key[item] || item));
+const encodeList = (list, key) => {
+  console.log('encoding', list, 'with', key);
+  let encoded = list.join('').replace(
+    new RegExp(Object.keys(key).join('|'), 'g'),
+    match => key[match]
+  ).split('');
+  return encoded;
+};
 
 const encodeMatrix = (matrix, key) => {
   if (!key) return matrix;
@@ -200,8 +217,8 @@ const encodeMatrix = (matrix, key) => {
 
 
 
-console.log('------------------------------------>>>>>>>>>>>>>> util ran')
+// console.log('------------------------------------>>>>>>>>>>>>>> util ran')
 
-module.exports = { comparePuzzleData, decodeList, decodeMatrix, encodeMatrix, stringTo2DArray };
+module.exports = { comparePuzzleData, decodeList, encodeList, decodeMatrix, encodeMatrix, shuffleArray, stringTo2DArray };
 
 
