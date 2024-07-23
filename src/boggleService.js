@@ -79,42 +79,11 @@ function generateSyllables(listLength) {
 
 let trie;
 
-
-async function convertJsonToBinary(jsonFilePath, binaryFilePath) {
-  // Read the JSON file
-  const jsonData = await fs.promises.readFile(jsonFilePath, 'utf8');
-
-  // Parse the JSON data
-  const words = JSON.parse(jsonData);
-
-  // Open a writable stream for the binary file
-  const writer = fs.createWriteStream(binaryFilePath);
-
-  // Process each word
-  words.forEach(word => {
-    // Create a buffer for the length (1 byte) + word
-    const wordBuffer = Buffer.from(word, 'utf8');
-    const lengthBuffer = Buffer.alloc(1);
-    lengthBuffer.writeUInt8(wordBuffer.length, 0);
-
-    // Write the length and the word to the binary file
-    writer.write(lengthBuffer);
-    writer.write(wordBuffer);
-  });
-
-  // Close the stream
-  writer.end();
-}
-
-
-
-
-
 const buildDictionary = async () => {
   const startTrie = Date.now();
   trie = new Trie();
   await trie.loadWordListFromBinary(filePaths.wordList);
-  console.warn(`${Date.now() - startTrie}ms ------> Built trie`);
+  console.warn(`-----> Built trie in ${Date.now() - startTrie}ms`);
   return trie;
 };
 
@@ -260,7 +229,6 @@ const generateLetterMatrix = (options) => {
       const path = [];
       if (canPlaceWordDFS(matrix, word, x, y, 0, new Set(), path)) {
         path.forEach(([px, py], i) => {
-          console.log('placing', word[i], 'of word', word);
           matrix[px][py] = word[i];
         });
         return true;
@@ -284,7 +252,11 @@ const generateLetterMatrix = (options) => {
 
     for (const word of wordLetterArrayList) {
       if (!placeWordErratically(matrix, word)) {
-        throw new Error(`Failed to place required word: ${word}`);
+        if (Date.now() % 1000 === 0) {
+          console.log(`Failed to place required word: ${word.join('')} - word ${placedWords.length}/${wordList.length}`);
+        }
+
+        return;
       } else {
         placedWords.push(word);
       }
@@ -506,13 +478,24 @@ const generateBoard = async (options) => {
     if (attempts % tickerTime === 0)
       console.log(`                                                                                            Attempt ${attempts}`);
     try {
-      const matrix = generateLetterMatrix(options);
+      let matrix = generateLetterMatrix(options);
       if (!matrix) {
-        result = {
-          ...result,
-          message: 'Failed to generate a matrix.'
-        };
-        return result;
+        if (options.customizations.requiredWords) {
+          while (!matrix && (attempts < maxAttempts)) {
+            if (attempts % (attempts > 1000 ? 1000 : 100) === 0) {
+              console.log(`Regenerating bad matrix on attempt                      ${attempts}`);
+             }
+            matrix = generateLetterMatrix(options);
+            attempts++;
+          }          
+        }
+        if (!matrix) {
+          result = {
+            ...result,
+            message: 'Failed to generate a matrix.'
+          };
+          return result;
+        }
       }
       const findResultsSet = findAllWords(matrix, trie);
       const metadata = getPuzzleMetadata(findResultsSet, matrix);

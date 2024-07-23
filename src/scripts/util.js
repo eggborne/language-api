@@ -215,7 +215,31 @@ const encodeMatrix = (matrix, key) => {
   return unconvertedMatrix;
 };
 
+async function convertJsonToBinary(jsonFilePath, binaryFilePath) {
+  // Read the JSON file
+  const jsonData = await fs.promises.readFile(jsonFilePath, 'utf8');
 
+  // Parse the JSON data
+  const words = JSON.parse(jsonData);
+
+  // Open a writable stream for the binary file
+  const writer = fs.createWriteStream(binaryFilePath);
+
+  // Process each word
+  words.forEach(word => {
+    // Create a buffer for the length (1 byte) + word
+    const wordBuffer = Buffer.from(word, 'utf8');
+    const lengthBuffer = Buffer.alloc(1);
+    lengthBuffer.writeUInt8(wordBuffer.length, 0);
+
+    // Write the length and the word to the binary file
+    writer.write(lengthBuffer);
+    writer.write(wordBuffer);
+  });
+
+  // Close the stream
+  writer.end();
+}
 
 // console.log('------------------------------------>>>>>>>>>>>>>> util ran')
 
