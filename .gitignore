@@ -4,3 +4,4 @@
 *.log
 wordsonlylist.json
 commonWords.json
+src/config.json

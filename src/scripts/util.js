@@ -1,3 +1,9 @@
+const path = require('path');
+const fs = require('fs');
+
+const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const pause = (duration) => new Promise(resolve => setTimeout(resolve, duration));
+
 const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
   const { uncommonWordLimit, totalWordLimits, averageWordLengthFilter, wordLengthLimits } = options.filters;
   let preferred = oldPuzzle;
@@ -127,23 +133,23 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
     wonCategories.length === Object.values(options.filters).length
   ) {
     preferred = newPuzzle;
-    console.log('\nNew puzzle won in categories: ' + wonCategories.join(', '));
-    console.log(
-      '>>> Old --->',
-      oldPuzzle.validityData.fullListLength, 'total',
-      oldPuzzle.validityData.percentUncommon + '% unc',
-      (oldPuzzle.puzzleData.metadata.averageWordLength).toFixed(2), 'avg',
-      JSON.stringify(oldPuzzle.validityData.wordLengthAmounts),
-      '------->', `${options.dimensions.width}${options.dimensions.height}${oldPuzzle.puzzleData.matrix.flat(2).join('')}`
-    ), '\n\n';
-    console.log(
-      '>>> New --->',
-      preferred.validityData.fullListLength, 'total',
-      preferred.validityData.percentUncommon + '% unc',
-      (preferred.puzzleData.metadata.averageWordLength).toFixed(2), 'avg',
-      JSON.stringify(preferred.validityData.wordLengthAmounts),
-      '------->', `${options.dimensions.width}${options.dimensions.height}${preferred.puzzleData.matrix.flat(2).join('')}`
-    ) + '\n';
+    // console.log('\nNew puzzle won in categories: ' + wonCategories.join(', '));
+    // console.log(
+    //   '>>> Old --->',
+    //   oldPuzzle.validityData.fullListLength, 'total',
+    //   oldPuzzle.validityData.percentUncommon + '% unc',
+    //   (oldPuzzle.puzzleData.metadata.averageWordLength).toFixed(2), 'avg',
+    //   JSON.stringify(oldPuzzle.validityData.wordLengthAmounts),
+    //   '------->', `${options.dimensions.width}${options.dimensions.height}${oldPuzzle.puzzleData.matrix.flat(2).join('')}`
+    // ), '\n\n';
+    // console.log(
+    //   '>>> New --->',
+    //   preferred.validityData.fullListLength, 'total',
+    //   preferred.validityData.percentUncommon + '% unc',
+    //   (preferred.puzzleData.metadata.averageWordLength).toFixed(2), 'avg',
+    //   JSON.stringify(preferred.validityData.wordLengthAmounts),
+    //   '------->', `${options.dimensions.width}${options.dimensions.height}${preferred.puzzleData.matrix.flat(2).join('')}`
+    // ) + '\n';
   }
 
   const newIncreases = {};
@@ -166,20 +172,7 @@ const shuffleArray = (arr) => {
   return shuffled;
 };
 
-const stringTo2DArray = (input, width, height) => {
-  const result = [];
-  let index = 0;
-  for (let i = 0; i < height; i++) {
-    const row = [];
-    for (let j = 0; j < width; j++) {
-      row.push(input[index]);
-      index++;
-    }
-    result.push(row);
-  }
-  return result;
-};
-
+const arrayToSquareMatrix = (flatArray) => Array(Math.sqrt(flatArray.length)).fill().map((_, i) => flatArray.slice(i * Math.sqrt(flatArray.length), (i + 1) * Math.sqrt(flatArray.length)));
 
 const decodeMatrix = (matrix, key) => {
   const convertedMatrix = matrix.map(row =>
@@ -192,7 +185,7 @@ const decodeMatrix = (matrix, key) => {
 
 const decodeList = (list, key) => (list.map(item => key[item] || item));
 const encodeList = (list, key) => {
-  console.log('encoding', list, 'with', key);
+  // console.log('encoding', list, 'with', key);
   let encoded = list.join('').replace(
     new RegExp(Object.keys(key).join('|'), 'g'),
     match => key[match]
@@ -241,8 +234,137 @@ async function convertJsonToBinary(jsonFilePath, binaryFilePath) {
   writer.end();
 }
 
-// console.log('------------------------------------>>>>>>>>>>>>>> util ran')
+const checkStructure = (array) => {
+  const keys = Object.keys(array[0]);
 
-module.exports = { comparePuzzleData, decodeList, encodeList, decodeMatrix, encodeMatrix, shuffleArray, stringTo2DArray };
+  for (let i = 0; i < array.length; i++) {
+    const currentKeys = Object.keys(array[i]);
+
+    // Check if the number of keys matches
+    if (keys.length !== currentKeys.length) {
+      console.log(`Mismatch in the number of keys at index ${i}`);
+      return false;
+    }
+
+    for (let key of keys) {
+      // Check if the key is present
+      if (!currentKeys.includes(key)) {
+        console.log(`Missing key: ${key} at index ${i}`);
+        return false;
+      }
+      // Check if the value associated with the key is null or undefined
+      if (array[i][key] === null || array[i][key] === undefined) {
+        console.log(`Null or undefined value for key: ${key} at index ${i}`);
+        return false;
+      }
+    }
+  }
+  return true;
+};
+
+const concatenateJsonFiles = (directoryPath, outputFileName = 'combined.json') => {
+  let combinedData = [];
+
+  try {
+    const files = fs.readdirSync(directoryPath);
+    const jsonFiles = files.filter(file => path.extname(file) === '.json');
+
+    jsonFiles.forEach(file => {
+      const filePath = path.join(directoryPath, file);
+      const fileContent = fs.readFileSync(filePath, 'utf8');
+      const jsonData = JSON.parse(fileContent);
+      combinedData = combinedData.concat(jsonData);
+
+      // Delete the original file
+      fs.unlinkSync(filePath);
+    });
+
+    const outputFilePath = path.join(directoryPath, outputFileName);
+    fs.writeFileSync(outputFilePath, JSON.stringify(combinedData, null, 2), 'utf8');
+    console.log(`All JSON files have been successfully concatenated into ${outputFileName}.`);
+  } catch (err) {
+    console.error('Error processing JSON files:', err);
+  }
+
+  return combinedData;
+};
+
+const alphabet = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
+
+const enumerateLetterList = (letterList) => {
+  return letterList.map(l => alphabet.indexOf(l));
+}
+
+const averageOfValues = (obj, decimals = 2) => {
+  const values = Object.values(obj);
+  const sum = values.reduce((acc, val) => acc + val, 0);
+  const average = sum / values.length;
+  return Number(average.toFixed(decimals));
+};
+
+const convertMilliseconds = ms =>
+  ms < 1000 ? `${ms} ms` :
+    ms < 60000 ? `${(ms / 1000).toFixed(0)} seconds` :
+      `${(ms / 60000).toFixed(2)} minutes`;
+
+
+const writeData = async (data, destPath, destFileName) => {
+  const trainingDataPath = path.join(destPath, destFileName);
+  const preparedJSON = JSON.stringify(data, null, 2);
+
+  try {
+    await fs.promises.writeFile(trainingDataPath, preparedJSON);
+    if (fs.existsSync(trainingDataPath, 'training_data.json')) {
+      const existingData = JSON.parse(fs.readFileSync(trainingDataPath, 'utf8'));
+      console.log('already was there!', existingData.length);
+      console.log('just got!', data.length);
+      data = data.concat(existingData);
+    }
+    console.log(`\nTraining data now has ${data.length} puzzles\n`);
+  } catch (error) {
+    console.error('Error checking for existing training data:', error);
+  }
+  return data;
+};
+
+const getHigherScores = (obj1, obj2) => {
+  const entries1 = Object.entries(obj1);
+  const entries2 = Object.entries(obj2);
+
+  return Object.fromEntries(
+    entries1.map(([key1, value1], index) => {
+      if (index < entries2.length) {
+        const [key2, value2] = entries2[index];
+        return value1 >= value2 ? [key1, value1] : [key2, value2];
+      }
+      return [key1, value1]; // if no corresponding entry in obj2, keep obj1's entry
+    })
+  );
+};
+
+const sortObjectByValues = (obj) =>
+  Object.fromEntries(
+    Object.entries(obj).sort(([, a], [, b]) => b - a)
+  );
+
+module.exports = {
+  arrayToSquareMatrix,
+  averageOfValues,
+  checkStructure,
+  comparePuzzleData,
+  concatenateJsonFiles,
+  convertMilliseconds,
+  decodeList,
+  decodeMatrix,
+  encodeList,
+  encodeMatrix,
+  enumerateLetterList,
+  getHigherScores,
+  pause,
+  randomInt,
+  sortObjectByValues,
+  shuffleArray,
+  writeData,
+};
 
 

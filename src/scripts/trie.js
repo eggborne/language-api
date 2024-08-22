@@ -35,6 +35,4 @@ class Trie {
   }
 }
 
-// console.log('------------------------------------>>>>>>>>>>>>>> trie ran')
-
-module.exports = { Trie };
+module.exports = Trie;

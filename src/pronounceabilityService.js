@@ -225,4 +225,4 @@ function isPronounceable(word) {
 
 // console.log('------------------------------------>>>>>>>>>>>>>> pronounceabilityService ran');
 
-module.exports = { isPronounceable };
+module.exports = isPronounceable;

@@ -1,6 +1,7 @@
-const { Trie } = require('./scripts/trie');
-const config = require('./config.json');
+const Trie = require('../scripts/trie');
+const config = require('../config.json');
 const path = require('path');
+
 const {
   cubeSets,
   letterFrequencyMaps,
@@ -10,8 +11,10 @@ const {
   commonWordListFilePath,
   defaultOptions,
 } = config;
-const commonWords = require(commonWordListFilePath);
-const { comparePuzzleData, shuffleArray, decodeList, encodeList } = require('./scripts/util');
+
+const commonPath = path.resolve(__dirname, commonWordListFilePath);
+const commonWords = require(commonPath);
+const { comparePuzzleData, shuffleArray, decodeList, encodeList } = require('../scripts/util');
 const filePaths = {
   wordList: path.join(__dirname, wordListFilePath),
 };
@@ -49,12 +52,15 @@ const getLetterList = (letterDistribution, listLength) => {
       }
       return Math.min(start, cumulativeFrequencies.length - 1);
     }
+    // Here is where we might apply an ML model?
     const result = [];
     for (let i = 0; i < listLength; i++) {
       const random = Math.random();
       const index = binarySearch(random);
       result.push(letters[index]);
     }
+    // test the result with ML here?
+    // if the list scores too low, try another list?
     return result;
   }
 };
@@ -79,13 +85,14 @@ function generateSyllables(listLength) {
 
 let trie;
 
-const buildDictionary = async () => {
+async function buildDictionary() {
   const startTrie = Date.now();
   trie = new Trie();
   await trie.loadWordListFromBinary(filePaths.wordList);
   console.warn(`-----> Built trie in ${Date.now() - startTrie}ms`);
   return trie;
 };
+
 
 const findAllWords = (matrix, trie) => {
   const maximumPathLength = 20;
@@ -190,12 +197,13 @@ const generateLetterMatrix = (options) => {
       ];
     }
   } else {
+    let letterKey;
     if (letterKeys.hasOwnProperty(letterDistribution)) {
-      const letterKey = letterKeys[letterDistribution];
-      letterList = decodeList(getLetterList(letterDistribution, totalCells), letterKey);
+      letterKey = letterKeys[letterDistribution];
     } else {
-      console.log('no key found!');
+      letterKey = letterKeys.default;
     }
+    letterList = decodeList(getLetterList(letterDistribution, totalCells), letterKey);
   }
 
   const matrix = Array.from({ length: height }, () => Array(width).fill(null));
@@ -253,7 +261,7 @@ const generateLetterMatrix = (options) => {
     for (const word of wordLetterArrayList) {
       if (!placeWordErratically(matrix, word)) {
         if (Date.now() % 1000 === 0) {
-          console.log(`Failed to place required word: ${word.join('')} - word ${placedWords.length}/${wordList.length}`);
+          console.log(`Failed to place required word: ${word.join('').toUpperCase()} - word ${placedWords.length + 1}/${wordList.length}`);
         }
 
         return;
@@ -290,7 +298,6 @@ const generateLetterMatrix = (options) => {
   return matrix;
 };
 
-
 const getPuzzleMetadata = (wordList) => {
   const result = {
     dateCreated: Date.now(),
@@ -301,7 +308,7 @@ const getPuzzleMetadata = (wordList) => {
     commonFromList.push(commonForLength);
   }
   let commonRatio = commonFromList.flat().length / wordList.size;
-  result.percentUncommon = 100 - Math.round(commonRatio * 100);
+  result.percentUncommon = Math.round((100 - commonRatio * 100) * 100) / 100;
   return result;
 };
 
@@ -313,10 +320,10 @@ const getWordLengthAmounts = (wordList) => (
   }, {})
 );
 
-const getValidityData = (wordList, metadata, options) => {
+const getPuzzleValidityData = (wordList, metadata, options) => {
 
   const validityData = {
-    averageWordLength: wordList.reduce((sum, word) => sum + word.length, 0) / wordList.length,
+    averageWordLength: Math.round((wordList.reduce((sum, word) => sum + word.length, 0) / wordList.length) * 100) / 100,
     fullListLength: wordList.length,
     percentUncommon: metadata.percentUncommon,
     wordLengthAmounts: getWordLengthAmounts(wordList),
@@ -398,9 +405,15 @@ const resolvePuzzleOptions = (options) => {
           options.customizations.customLetters.letterList.length = totalNeeded;
         }
       }
-      if (!shuffle) {
-        options.returnBest = false;
-      }
+      // if (!shuffle) {
+      //   console.log('\nreturnBest set false due to no shuffle?\n')
+      //   options.returnBest = false;
+      // }
+
+    }
+    if (options.customizations.requiredWords) {
+      options.customizations.requiredWords.wordList = options.customizations.requiredWords.wordList.sort((a, b) => b.length - a.length);
+      console.log('sorted required words:', options.customizations.requiredWords.wordList);
     }
 
   }
@@ -411,6 +424,9 @@ const resolvePuzzleOptions = (options) => {
 };
 
 const solveBoggle = async (letterString) => {
+
+  if (!trie) await buildDictionary();
+
   let width, height;
   let lettersArray = letterString.trim().toLowerCase().split('');
   const { userWidth, userHeight } = {
@@ -458,10 +474,14 @@ const solveBoggle = async (letterString) => {
   };
 };
 
-const generateBoard = async (options) => {
-  console.log('received options', options);
+const generatePuzzle = async (options, trie) => {
+  // let trie;
+
+  if (!trie) trie = await buildDictionary();
+
+  // console.log('received options', options);
   options = resolvePuzzleOptions(options);
-  console.log('\nGenerating with resolved options\n', options);
+  // console.log('\nGenerating with resolved options\n', options);
   const maxAttempts = options.maxAttempts;
   let bestSoFar;
   let result;
@@ -474,20 +494,20 @@ const generateBoard = async (options) => {
 
   while (attempts < maxAttempts) {
     attempts++;
-    let tickerTime = attempts > 1000 ? 1000 : 100;
-    if (attempts % tickerTime === 0)
-      console.log(`                                                                                            Attempt ${attempts}`);
+    // let tickerTime = attempts > 1000 ? 1000 : 100;
+    // if (attempts % tickerTime === 0)
+    //   console.log(`                                                                                            Attempt ${attempts}`);
     try {
       let matrix = generateLetterMatrix(options);
       if (!matrix) {
         if (options.customizations.requiredWords) {
           while (!matrix && (attempts < maxAttempts)) {
             if (attempts % (attempts > 1000 ? 1000 : 100) === 0) {
-              console.log(`Regenerating bad matrix on attempt                      ${attempts}`);
-             }
+              console.log(`Regenerating bad matrix on attempt         ${attempts}`);
+            }
             matrix = generateLetterMatrix(options);
             attempts++;
-          }          
+          }
         }
         if (!matrix) {
           result = {
@@ -500,32 +520,32 @@ const generateBoard = async (options) => {
       const findResultsSet = findAllWords(matrix, trie);
       const metadata = getPuzzleMetadata(findResultsSet, matrix);
       const wordListArray = Array.from(findResultsSet);
-      const validityData = getValidityData(wordListArray, metadata, options);
-      metadata.averageWordLength = validityData.averageWordLength;
+      const validityData = getPuzzleValidityData(wordListArray, metadata, options);
 
       const puzzleData = {
         matrix,
         wordList: wordListArray,
         metadata: {
           ...metadata,
-          letterDistribution: options.letterDistribution,
-          revisions: serverStats ? revisions : 0,
+          ...validityData,
+          attempts,
+          inputParams: options,
+          revisions,
         },
-        attempts,
-        revisions,
       };
-      //
 
+      result = {
+        data: puzzleData,
+      };
       if (validityData.valid) {
-        result = {
-          data: puzzleData,
-          valid: true,
-        };
-        console.log('>> breaking while loop due to found qualifying puzzle');
+        result.valid = true;
+        // console.log(`\nReturning --> ${result.data.matrix.flat().join('')}`)
         break;
       } else {
+        result.valid = false;
         if (options.returnBest) {
           // check if the new invalid puzzle is an improvement over the last one and keep it as bestSoFar if so
+          // console.log(validityData.fullListLength, '\nTrying again due to maxAttempts > 1 and returnBest === true')
           const currentPuzzleData = {
             puzzleData,
             validityData,
@@ -534,17 +554,20 @@ const generateBoard = async (options) => {
             bestSoFar = currentPuzzleData;
           } else {
             const compareResult = comparePuzzleData(bestSoFar, currentPuzzleData, options);
-            if (Object.values(compareResult.newIncreases).length) {
-              for (const key in compareResult.newIncreases) {
-                if (isNaN(serverStats.increases[key])) { serverStats.increases[key] = 0; }
-                serverStats.increases[key] += compareResult.newIncreases[key];
-              }
-            }
+            // if (Object.values(compareResult.newIncreases).length) {
+            //   for (const key in compareResult.newIncreases) {
+            //     if (isNaN(serverStats.increases[key])) { serverStats.increases[key] = 0; }
+            //     serverStats.increases[key] += compareResult.newIncreases[key];
+            //   }
+            // }
+            // if (bestSoFar !== compareResult.preferred) {
+            //   console.log('preferred is not current bestSoFar!')
+            // }
+            bestSoFar = compareResult.preferred;
             if (currentPuzzleData === compareResult.preferred) {
               revisions++;
-              puzzleData.metadata.revisions = revisions;
+              bestSoFar.puzzleData.metadata.revisions = revisions;
             }
-            bestSoFar = compareResult.preferred;
             if (attempts === maxAttempts) {
               result = {
                 data: bestSoFar.puzzleData,
@@ -559,20 +582,24 @@ const generateBoard = async (options) => {
   const attString = `${attempts} attempt${attempts > 1 ? 's' : ''}`;
   const revString = `${revisions} revision${revisions > 1 ? 's' : ''}`;
 
-  if (options.customizations) {
-    result.data.customizations = options.customizations;
-  }
-  if (options.filters) {
-    result.data.filters = options.filters;
-  }
+  // if (options.customizations) {
+  //   result.data.customizations = options.customizations;
+  // }
+  // if (options.filters) {
+  //   result.data.filters = options.filters;
+  // }
 
   if (result && result.valid) {
+    // console.log('\n');
+    // console.log('FOUND VALID ---> ', result.data.matrix.flat().join(''));
+    // console.log('\n');
     result = {
       ...result,
-      message: `Found valid puzzle after ${attString} and ${revString}.`,
+      message: `Found valid puzzle after ${attString} and ${revString}`,
     };
   } else {
     if (options.returnBest) {
+      // console.log(`Returning best puzzle after max ${attString} and ${revString}.`)
       result = {
         ...result,
         message: `Returning best puzzle after max ${attString} and ${revString}.`,
@@ -586,12 +613,8 @@ const generateBoard = async (options) => {
     }
   }
 
-  console.log('Sending result.message:', result.message), '\n';
+  // console.log('Sending result.message:', result.message), '\n';
   return result;
 };
 
-if (!trie) buildDictionary();
-
-// console.log('------------------------------------>>>>>>>>>>>>>> boggleService ran')
-
-module.exports = { generateBoard, solveBoggle };
+module.exports = { buildDictionary, generatePuzzle, getLetterList, solveBoggle };
