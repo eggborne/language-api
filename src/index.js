@@ -96,7 +96,7 @@ app.post(`${prefix}/getBestPuzzle`, async (req, res) => {
 app.post(`${prefix}/collect`, async (req, res) => {
   const { repetitions } = req.body;
   try {
-    const trainingData = await collect(repetitions, false);
+    const trainingData = await collect(repetitions, true);
     const best = await getBestLists();
     const bestAverage = averageOfValues(best, 5);
     console.log(`\New average totalWords for ${Object.values(best).length} puzzles ---> `, bestAverage, `\n`);
