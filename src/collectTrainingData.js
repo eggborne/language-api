@@ -4,7 +4,7 @@ const cliProgress = require('cli-progress');
 const colors = require('colors');
 const path = require('path');
 const { averageOfValues } = require('./scripts/util');
-const { getBestLists, addToBestList, addToObj1IfGreaterThanAverage } = require('./scripts/research');
+const { getBestLists, addToBestList, addToObj1IfGreaterThanAverage, sendListToRemote } = require('./scripts/research');
 const { buildDictionary } = require('./services/boggleService');
 
 const numCPUs = os.cpus().length;
@@ -36,6 +36,7 @@ const collectTrainingData = async (repetitions) => {
 
   const currentList = await getBestLists();
   let listAverage = averageOfValues(currentList, 5);
+  let listLength = Object.entries(currentList).length;
 
   console.log(`Old average for ${Object.values(currentList).length} puzzles ---> `, listAverage);
 
@@ -104,7 +105,12 @@ const collectTrainingData = async (repetitions) => {
   console.log('------> above-initial-average letter lists collected:', improvedAmount);
   if (improvedAmount) {
     const improvedList = addToObj1IfGreaterThanAverage(currentList, aboveAverageLetterLists);
-    await addToBestList(improvedList, true);
+    if (Object.entries(improvedList).length > listLength) {
+      await addToBestList(improvedList, true);
+      await sendListToRemote(improvedList);
+    } else {
+      console.log('NO ACCEPTABLE NEW WORDS')
+    }
   }
 
   return trainingData;

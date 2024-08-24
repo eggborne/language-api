@@ -293,7 +293,7 @@ const alphabet = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m
 
 const enumerateLetterList = (letterList) => {
   return letterList.map(l => alphabet.indexOf(l));
-}
+};
 
 const averageOfValues = (obj, decimals = 2) => {
   const values = Object.values(obj);
@@ -309,13 +309,13 @@ const convertMilliseconds = ms =>
 
 
 const writeData = async (data, destPath, destFileName) => {
-  const trainingDataPath = path.join(destPath, destFileName);
+  const trainingDataLocalPath = path.join(destPath, destFileName);
   const preparedJSON = JSON.stringify(data, null, 2);
 
   try {
-    await fs.promises.writeFile(trainingDataPath, preparedJSON);
-    if (fs.existsSync(trainingDataPath, 'training_data.json')) {
-      const existingData = JSON.parse(fs.readFileSync(trainingDataPath, 'utf8'));
+    await fs.promises.writeFile(trainingDataLocalPath, preparedJSON);
+    if (fs.existsSync(trainingDataLocalPath, 'training_data.json')) {
+      const existingData = JSON.parse(fs.readFileSync(trainingDataLocalPath, 'utf8'));
       console.log('already was there!', existingData.length);
       console.log('just got!', data.length);
       data = data.concat(existingData);

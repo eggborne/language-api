@@ -514,5 +514,6 @@
       "ȱ"
     ]
   },
-  "trainingDataPath": "../../buggle-training-data"
+  "trainingDataLocalPath": "../../buggle-training-data",
+  "trainingDataRemotePath": "https://mikedonovan.dev/buggle-training-data/server.php"
 }

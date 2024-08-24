@@ -1,10 +1,11 @@
 const path = require('path');
+const axios = require('axios');
 const fs = require('fs/promises');
-const { cubeSets, trainingDataPath } = require('../config.json');
+const { cubeSets, trainingDataLocalPath, trainingDataRemotePath } = require('../config.json');
 const { arrayToSquareMatrix, randomInt } = require('./util');
 
-const listDataDir = path.resolve(__dirname, `../${trainingDataPath}/research`);
-const filePath = path.join(listDataDir, `best_lists.json`);
+const listDataDir = path.resolve(__dirname, `../${trainingDataLocalPath}/research`);
+const filePath = path.join(listDataDir, `best-lists.json`);
 
 const notUnique = (obj) => {
   const seen = new Set();
@@ -16,6 +17,21 @@ const notUnique = (obj) => {
     seen.add(sortedKey);
   }
   return false;
+};
+
+const sendListToRemote = async () => {
+  try {
+    const jsonData = await fs.readFile(filePath, 'utf-8');
+    const response = await axios.post(trainingDataRemotePath, JSON.parse(jsonData), {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    console.log(`Successfully sent JSON file. Server responded with: ${response.status} ${response.statusText}`);
+  } catch (error) {
+    console.error('Error sending JSON file:', error.message);
+  }
 }
 
 const addToBestList = async (newItem, overwrite) => {
@@ -32,10 +48,10 @@ const addToBestList = async (newItem, overwrite) => {
     );
     const unique = !notUnique();
     if (unique) {
-      console.log('Lists are unique! OK to save!')
+      console.log('Lists are unique! OK to save!');
       await fs.writeFile(filePath, JSON.stringify(sortedList, null, 2));
     } else {
-      console.log(`\nWait! it's not unique!\n`)
+      console.log(`\nWait! it's not unique!\n`);
     }
     console.log('New list written to file.');
     return sortedList;
@@ -100,4 +116,12 @@ const getRandomCubes = (cubeSetName) => {
   return { letterList };
 };
 
-module.exports = { addToBestList, addToObj1IfGreaterThanAverage, getBestLists, getRandomCubes, notUnique }
+module.exports = 
+{
+  addToBestList, 
+  addToObj1IfGreaterThanAverage, 
+  getBestLists, 
+  getRandomCubes,
+  notUnique,
+  sendListToRemote,
+};
