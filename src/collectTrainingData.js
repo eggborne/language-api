@@ -8,11 +8,15 @@ const { getBestLists, addToBestList, addToObj1IfGreaterThanAverage } = require('
 const { buildDictionary } = require('./services/boggleService');
 
 const numCPUs = os.cpus().length;
+// const numCPUs = 4;
 
 let trie = false;
 
 const collectTrainingData = async (repetitions) => {
+  const chunkSize = Math.min(Math.ceil(repetitions / numCPUs), 1000)
   console.log('CPUS:', numCPUs);
+  console.log('chunkSize:', chunkSize);
+
 
   if (!trie) {
     trie = await buildDictionary();
@@ -33,9 +37,7 @@ const collectTrainingData = async (repetitions) => {
   const currentList = await getBestLists();
   let listAverage = averageOfValues(currentList, 5);
 
-  console.log(`\nOLD AVERAGE for ${Object.values(currentList).length} puzzles ---> `, listAverage);
-
-  progressBar.start(repetitions, 0); // Set the total to `repetitions`
+  console.log(`Old average for ${Object.values(currentList).length} puzzles ---> `, listAverage);
 
   // Calculate how many repetitions each worker should handle
   const workerRepetitions = Math.ceil(repetitions / numCPUs);
@@ -50,13 +52,13 @@ const collectTrainingData = async (repetitions) => {
         end: workerEnd,
         listAverage,
         trie,
-        chunkSize: 100000, // Limit the chunkSize within the worker
+        chunkSize,
       }
     });
 
     worker.on('message', ({ type, data }) => {
       if (type === 'progress') {
-        completedTasks += 1;  // Increment by 1 for each progress message
+        completedTasks += 1;
         progressBar.update(completedTasks);
       } else if (type === 'result') {
         trainingData = trainingData.concat(data.trainingData);
@@ -76,9 +78,11 @@ const collectTrainingData = async (repetitions) => {
         console.error(`Worker ${i + 1} stopped with exit code ${code}`);
       }
     });
-    console.log(`Created worker ${i + 1}`);
     workers.push(worker);
+    process.stdout.write(`Created worker ${workers.length}...\r`);
   }
+
+  progressBar.start(repetitions, 0);
 
   try {
     await Promise.all(workers.map(worker => new Promise((resolve, reject) => {
@@ -96,9 +100,12 @@ const collectTrainingData = async (repetitions) => {
 
   progressBar.stop();
   console.log(`Collected data for ${trainingData.length} puzzles.`);
-  console.log(`Collected ${Object.keys(aboveAverageLetterLists).length} above-average letter lists.`);
-  const improvedList = addToObj1IfGreaterThanAverage(currentList, aboveAverageLetterLists);
-  await addToBestList(improvedList, true);
+  const improvedAmount = Object.keys(aboveAverageLetterLists).length;
+  console.log('------> above-initial-average letter lists collected:', improvedAmount);
+  if (improvedAmount) {
+    const improvedList = addToObj1IfGreaterThanAverage(currentList, aboveAverageLetterLists);
+    await addToBestList(improvedList, true);
+  }
 
   return trainingData;
 };

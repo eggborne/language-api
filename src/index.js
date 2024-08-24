@@ -13,7 +13,9 @@ const { collectTrainingData } = require('./collectTrainingData');
 const { arrayToSquareMatrix, averageOfValues, convertMilliseconds } = require('./scripts/util');
 const { getTotalWordsPrediction, getClosestPuzzleToTotal } = require('./services/predictionService');
 const { getBestLists } = require('./scripts/research');
-const { trainingDataPath } = require('./config.json')
+const { trainingDataPath } = require('./config.json');
+require('dotenv').config();
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -32,8 +34,7 @@ async function collect(repetitions, push) {
   const startTime = Date.now();
   let data = await collectTrainingData(repetitions);
   const quantity = data.length;
-  console.log('final yield is', quantity);
-  console.log(`Took ${convertMilliseconds(Date.now() - startTime)}`);
+  console.log('Time per item ------>', (quantity / (Date.now() - startTime)))
   const compressedData = minifyAndCompress(data);
   const trainingDataDir = path.resolve(__dirname, trainingDataPath);
   const filePath = path.join(trainingDataDir, `training_data-${repetitions}.gz`);
@@ -59,67 +60,77 @@ async function prune(repetitions) {
   return { prunedList, totalAverage };
 }
 
-// predict 
+console.log(process.env.NODE_ENV)
 
-app.post(`${prefix}/predict`, async (req, res) => {
-  const { letterList } = req.body;
-  try {
-    const startTime = Date.now();
-    const matrix = arrayToSquareMatrix(letterList.split(''));
-    const prediction = await getTotalWordsPrediction(matrix);
-    console.log('Took', convertMilliseconds(Date.now() - startTime), '-> PREDICTION FOR', letterList, prediction);
-    res.status(400).json(prediction);
-  } catch (error) {
-    console.error('Error applying model:', error);
-    res.status(500).send(`Error applying model: ${error}`);
-  }
-});
+if (process.env.NODE_ENV === 'development') {
 
-app.post(`${prefix}/getBestPuzzle`, async (req, res) => {
-  const { totalWordTarget, repetitions } = req.body;
-  try {
-    const startTime = Date.now();
-    const { bestPuzzle, closestOffBy } = await getClosestPuzzleToTotal(totalWordTarget, repetitions)
-    console.log(bestPuzzle, closestOffBy, '- closest to', totalWordTarget, '? Took', convertMilliseconds(Date.now() - startTime));
-    res.status(400).json({
-      best: bestPuzzle,
-      offby: closestOffBy
-    });
-  } catch (error) {
-    console.error('Error applying model:', error);
-    res.status(500).send(`Error applying model: ${error}`);
-  }
-});
+  // predict 
+  
+  app.post(`${prefix}/predict`, async (req, res) => {
+    const { letterList } = req.body;
+    try {
+      const startTime = Date.now();
+      const matrix = arrayToSquareMatrix(letterList.split(''));
+      const prediction = await getTotalWordsPrediction(matrix);
+      console.log('Took', convertMilliseconds(Date.now() - startTime), '-> PREDICTION FOR', letterList, prediction);
+      res.status(400).json(prediction);
+    } catch (error) {
+      console.error('Error applying model:', error);
+      res.status(500).send(`Error applying model: ${error}`);
+    }
+  });
+  
+  app.post(`${prefix}/getBestPuzzle`, async (req, res) => {
+    const { totalWordTarget, repetitions } = req.body;
+    try {
+      const startTime = Date.now();
+      const { bestPuzzle, closestOffBy } = await getClosestPuzzleToTotal(totalWordTarget, repetitions);
+      console.log(bestPuzzle, closestOffBy, '- closest to', totalWordTarget, '? Took', convertMilliseconds(Date.now() - startTime));
+      res.status(400).json({
+        best: bestPuzzle,
+        offby: closestOffBy
+      });
+    } catch (error) {
+      console.error('Error applying model:', error);
+      res.status(500).send(`Error applying model: ${error}`);
+    }
+  });
+  
+  // collect
+  
+  app.post(`${prefix}/collect`, async (req, res) => {
+    const { cycles, repetitions } = req.body;
+    try {
+      console.log('\nCollecting', cycles, 'cycles of', repetitions, 'puzzles');
+      for (let i = 0; i < cycles; i++) {
+        const trainingData = await collect(repetitions, false);
+        const best = await getBestLists();
+        const bestAverage = averageOfValues(best, 5);
+        console.log(`\New average totalWords for ${Object.values(best).length} puzzles ---> `, bestAverage, `\n`);
+      }
+      // res.status(400).json(`${trainingData.length} puzzles collected. Best average: ${bestAverage}`);
+      res.status(400).json('Finished.');
+    } catch (error) {
+      console.error('Error generating training data:', error);
+      res.status(500).send('Failed to generate training data');
+    }
+  });
+  
+  // prune
+  
+  app.post(`${prefix}/prune`, async (req, res) => {
+    const { repetitions } = req.body;
+    try {
+      const { prunedList, totalAverage } = await prune(repetitions);
+      console.log(`\New average totalWords for ${Object.values(prunedList).length} puzzles ---> `, totalAverage, `\n`);
+      res.status(400).json(`New total average: ${totalAverage}`);
+  
+    } catch (error) {
+      console.error('An error occurred during pruning:', error);
+    }
+  });
 
-// collect
-
-app.post(`${prefix}/collect`, async (req, res) => {
-  const { repetitions } = req.body;
-  try {
-    const trainingData = await collect(repetitions, true);
-    const best = await getBestLists();
-    const bestAverage = averageOfValues(best, 5);
-    console.log(`\New average totalWords for ${Object.values(best).length} puzzles ---> `, bestAverage, `\n`);
-    res.status(400).json(`${trainingData.length} puzzles collected. Best average: ${bestAverage}`);
-  } catch (error) {
-    console.error('Error generating training data:', error);
-    res.status(500).send('Failed to generate training data');
-  }
-});
-
-// prune
-
-app.post(`${prefix}/prune`, async (req, res) => {
-  const { repetitions } = req.body;
-  try {
-    const { prunedList, totalAverage } = await prune(repetitions);
-    console.log(`\New average totalWords for ${Object.values(prunedList).length} puzzles ---> `, totalAverage, `\n`);
-    res.status(400).json(`New total average: ${totalAverage}`);
-
-  } catch (error) {
-    console.error('An error occurred during pruning:', error);
-  }
-});
+}
 
 // generate
 
