@@ -165,8 +165,12 @@ const generateLetterMatrix = (options) => {
       letterList = userLetterList;
       if (convertQ) {
         const encodedLetterList = encodeList(userLetterList, { 'qu': 'q' });
-        const convertedLetterList = decodeList(encodedLetterList, { 'q': 'qu' });
+        // const convertedLetterList = decodeList(encodedLetterList, { 'q': 'qu' });
+        const convertedLetterList = decodeList(userLetterList, { 'q': 'qu' });
+        
         if (userLetterList.length > convertedLetterList.length) {
+          console.error('length no math!!')
+          return;
           const lettersShort = userLetterList.length - convertedLetterList.length;
           letterList = [
             ...convertedLetterList,
@@ -308,7 +312,7 @@ const getPuzzleMetadata = (wordList) => {
     commonFromList.push(commonForLength);
   }
   let commonRatio = commonFromList.flat().length / wordList.size;
-  result.percentUncommon = Math.round((100 - commonRatio * 100) * 100) / 100;
+  result.percentUncommon = 100 - (commonRatio * 100);
   return result;
 };
 
@@ -323,7 +327,7 @@ const getWordLengthAmounts = (wordList) => (
 const getPuzzleValidityData = (wordList, metadata, options) => {
 
   const validityData = {
-    averageWordLength: Math.round((wordList.reduce((sum, word) => sum + word.length, 0) / wordList.length) * 100) / 100,
+    averageWordLength: wordList.reduce((sum, word) => sum + word.length, 0) / wordList.length,
     fullListLength: wordList.length,
     percentUncommon: metadata.percentUncommon,
     wordLengthAmounts: getWordLengthAmounts(wordList),
@@ -375,6 +379,8 @@ const getPuzzleValidityData = (wordList, metadata, options) => {
       }
     }
   }
+  validityData.percentCommon = 100 - validityData.percentUncommon;
+  delete validityData.percentUncommon;
   return validityData;
 };
 
@@ -475,8 +481,6 @@ const solveBoggle = async (letterString) => {
 };
 
 const generatePuzzle = async (options, trie) => {
-  // let trie;
-
   if (!trie) trie = await buildDictionary();
 
   // console.log('received options', options);

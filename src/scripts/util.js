@@ -185,7 +185,6 @@ const decodeMatrix = (matrix, key) => {
 
 const decodeList = (list, key) => (list.map(item => key[item] || item));
 const encodeList = (list, key) => {
-  // console.log('encoding', list, 'with', key);
   let encoded = list.join('').replace(
     new RegExp(Object.keys(key).join('|'), 'g'),
     match => key[match]
@@ -262,33 +261,6 @@ const checkStructure = (array) => {
   return true;
 };
 
-const concatenateJsonFiles = (directoryPath, outputFileName = 'combined.json') => {
-  let combinedData = [];
-
-  try {
-    const files = fs.readdirSync(directoryPath);
-    const jsonFiles = files.filter(file => path.extname(file) === '.json');
-
-    jsonFiles.forEach(file => {
-      const filePath = path.join(directoryPath, file);
-      const fileContent = fs.readFileSync(filePath, 'utf8');
-      const jsonData = JSON.parse(fileContent);
-      combinedData = combinedData.concat(jsonData);
-
-      // Delete the original file
-      fs.unlinkSync(filePath);
-    });
-
-    const outputFilePath = path.join(directoryPath, outputFileName);
-    fs.writeFileSync(outputFilePath, JSON.stringify(combinedData, null, 2), 'utf8');
-    console.log(`All JSON files have been successfully concatenated into ${outputFileName}.`);
-  } catch (err) {
-    console.error('Error processing JSON files:', err);
-  }
-
-  return combinedData;
-};
-
 const alphabet = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
 
 const enumerateLetterList = (letterList) => {
@@ -302,30 +274,14 @@ const averageOfValues = (obj, decimals = 2) => {
   return Number(average.toFixed(decimals));
 };
 
-const convertMilliseconds = ms =>
-  ms < 1000 ? `${ms} ms` :
-    ms < 60000 ? `${(ms / 1000).toFixed(0)} seconds` :
-      `${(ms / 60000).toFixed(2)} minutes`;
-
-
-const writeData = async (data, destPath, destFileName) => {
-  const trainingDataLocalPath = path.join(destPath, destFileName);
-  const preparedJSON = JSON.stringify(data, null, 2);
-
-  try {
-    await fs.promises.writeFile(trainingDataLocalPath, preparedJSON);
-    if (fs.existsSync(trainingDataLocalPath, 'training_data.json')) {
-      const existingData = JSON.parse(fs.readFileSync(trainingDataLocalPath, 'utf8'));
-      console.log('already was there!', existingData.length);
-      console.log('just got!', data.length);
-      data = data.concat(existingData);
-    }
-    console.log(`\nTraining data now has ${data.length} puzzles\n`);
-  } catch (error) {
-    console.error('Error checking for existing training data:', error);
-  }
-  return data;
+const averageOfValue = (obj, attribute, decimals = 2) => {
+  const values = Object.values(obj);
+  const sum = values.reduce((acc, val) => acc + val, 0);
+  const average = sum / values.length;
+  return Number(average);
 };
+
+const convertMilliseconds = ms => ms < 1000 ? `${ms} ms` : ms < 60000 ? `${(ms / 1000).toFixed(0)} seconds` : `${(ms / 60000).toFixed(2)} minutes`;
 
 const getHigherScores = (obj1, obj2) => {
   const entries1 = Object.entries(obj1);
@@ -342,6 +298,50 @@ const getHigherScores = (obj1, obj2) => {
   );
 };
 
+// Function to compile JSON files based on attributes in their file names
+function compileJsonFiles(directory, outputFile) {
+  const compiledData = {};
+
+  // Read all files from the specified directory
+  fs.readdir(directory, (err, files) => {
+    if (err) {
+      console.error(`Error reading directory: ${err}`);
+      return;
+    }
+
+    // Filter and process only JSON files
+    files.forEach(file => {
+      if (path.extname(file) === '.json') {
+        const attributeMatch = file.match(/best-(.*?)(-|\.json)/);
+        if (attributeMatch && attributeMatch[1]) {
+          const attribute = attributeMatch[1];
+
+          // Read the JSON file
+          const filePath = path.join(directory, file);
+          const fileData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+          // Add the data to the compiledData object
+          Object.entries(fileData).forEach(([key, value]) => {
+            if (!compiledData[key]) {
+              compiledData[key] = {};
+            }
+            compiledData[key][attribute] = value;
+          });
+        }
+      }
+    });
+
+    // Write the compiled data to the destination file
+    fs.writeFile(outputFile, JSON.stringify(compiledData, null, 2), (err) => {
+      if (err) {
+        console.error(`Error writing to file: ${err}`);
+      } else {
+        console.log(`Data successfully compiled into ${outputFile}`);
+      }
+    });
+  });
+}
+
 const sortObjectByValues = (obj) =>
   Object.fromEntries(
     Object.entries(obj).sort(([, a], [, b]) => b - a)
@@ -350,9 +350,9 @@ const sortObjectByValues = (obj) =>
 module.exports = {
   arrayToSquareMatrix,
   averageOfValues,
+  averageOfValue,
   checkStructure,
   comparePuzzleData,
-  concatenateJsonFiles,
   convertMilliseconds,
   decodeList,
   decodeMatrix,
@@ -364,7 +364,6 @@ module.exports = {
   randomInt,
   sortObjectByValues,
   shuffleArray,
-  writeData,
 };
 
 

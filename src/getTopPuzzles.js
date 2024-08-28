@@ -3,26 +3,23 @@ const os = require('os');
 const cliProgress = require('cli-progress');
 const colors = require('colors');
 const path = require('path');
-const { averageOfValues } = require('./scripts/util');
+const { averageOfValues, averageOfValue } = require('./scripts/util');
 const { getBestLists, addToBestList, addToObj1IfGreaterThanAverage, sendListToRemote } = require('./scripts/research');
 const { buildDictionary } = require('./services/boggleService');
 
-const numCPUs = os.cpus().length;
-// const numCPUs = 4;
-
 let trie = false;
 
-const collectTrainingData = async (repetitions) => {
-  const chunkSize = Math.min(Math.ceil(repetitions / numCPUs), 1000)
-  console.log('CPUS:', numCPUs);
-  console.log('chunkSize:', chunkSize);
+const getTopPuzzles = async (repetitions, attribute, cores, qualityLimits) => {
+  const numCPUs = cores;
+  const chunkSize = Math.min(Math.ceil(repetitions / numCPUs), 50000)
+  console.log('CPUS:', numCPUs, 'chunkSize:', chunkSize);
 
   if (!trie) {
     trie = await buildDictionary();
   }
 
   let progressBar = new cliProgress.SingleBar({
-    format: 'Collection progress |' + colors.cyan('{bar}') + '| {percentage}% || {value}/{total} Lists || ETA: {eta}s',
+    format: 'Top ' + attribute + ' progress |' + colors.cyan('{bar}') + '| {percentage}% || {value}/{total} Lists || ETA: {eta}s',
     barCompleteChar: '\u2588',
     barIncompleteChar: '\u2591',
     hideCursor: true
@@ -33,21 +30,23 @@ const collectTrainingData = async (repetitions) => {
   let trainingData = [];
   let aboveAverageLetterLists = {};
 
-  const currentList = await getBestLists('best-totalWords.json');
-  let listAverage = averageOfValues(currentList, 5);
+  const listFileName = attribute !== 'totalWords' ? `best-${attribute}-${qualityLimits.min}-${qualityLimits.max}.json` : `best-totalWords.json`;
+  const currentList = await getBestLists(listFileName.replace(/percentUncommon/g, 'percentCommon'));
+  let listAverage = averageOfValue(currentList, attribute, 5);
   let listLength = Object.entries(currentList).length;
 
-  console.log(`Old average for ${Object.values(currentList).length} puzzles ---> `, listAverage);
+  console.log(`Old average ${attribute} for ${listLength} puzzles ---> `, listAverage);
 
-  // Calculate how many repetitions each worker should handle
   const workerRepetitions = Math.ceil(repetitions / numCPUs);
 
   for (let i = 0; i < numCPUs; i++) {
     const workerStart = i * workerRepetitions;
     const workerEnd = Math.min(workerStart + workerRepetitions, repetitions);
 
-    const worker = new Worker(path.resolve(__dirname, 'workers/trainingDataWorker.js'), {
+    const worker = new Worker(path.resolve(__dirname, 'workers/topPuzzlesWorker.js'), {
       workerData: {
+        attribute,
+        qualityLimits,
         start: workerStart,
         end: workerEnd,
         listAverage,
@@ -101,19 +100,22 @@ const collectTrainingData = async (repetitions) => {
   progressBar.stop();
   console.log(`Collected data for ${trainingData.length} puzzles.`);
   const improvedAmount = Object.keys(aboveAverageLetterLists).length;
-  console.log('------> above-initial-average letter lists collected:', improvedAmount);
   if (improvedAmount) {
     const improvedList = addToObj1IfGreaterThanAverage(currentList, aboveAverageLetterLists);
     if (Object.entries(improvedList).length > listLength) {
-      await addToBestList(improvedList, 'best-totalWords.json', true);
-      await sendListToRemote(improvedList, 'best-totalWords.json');
-      console.log('Added', (Object.entries(improvedList).length - listLength), 'above-average entries.')
+      let destFileName = attribute !== 'totalWords' ? `best-${attribute}-${qualityLimits.min}-${qualityLimits.max}.json` : `best-totalWords.json`;
+      destFileName = destFileName.replace(/percentUncommon/g, 'percentCommon');
+      await addToBestList(improvedList, destFileName, true);
+      const approvedEntries = Object.entries(improvedList).length - listLength;
+      await sendListToRemote(destFileName);
+      const successRate = (approvedEntries / repetitions) * 100;
+      console.log('Added from', repetitions, 'total:', (approvedEntries), '/', improvedAmount, '(initially) above-average entries. Success rate ------>', successRate)
     } else {
-      console.log('No acceptable new entries.')
+      console.log('No acceptable new entries.');
     }
   }
 
   return trainingData;
 };
 
-module.exports = { collectTrainingData };
+module.exports = { getTopPuzzles };

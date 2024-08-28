@@ -61,12 +61,12 @@ const pruneLetterListCollection = async (listObj, attempts) => {
   progressBar.stop();
 
   const totalTime = Date.now() - startTime;
-  const oldList = await getBestLists();
+  const oldList = await getBestLists('best-totalWords.json');
 
   const prunedList = getHigherScores(oldList, listScores);
   const totalAverage = averageOfValues(prunedList);
 
-  addToBestList(prunedList, true);
+  addToBestList(prunedList, 'best-totalWords.json', true);
   console.log(`Total processing time: ${convertMilliseconds(totalTime)}`);
   console.log(`Average time per item: ${convertMilliseconds(totalTime / (letterLists.length * attempts))}`);
 

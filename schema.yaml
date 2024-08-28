@@ -1,0 +1,209 @@
+openapi: 3.1.0
+info:
+  title: Boggle Puzzle API
+  version: 1.0.0
+  description: API for generating and solving Boggle puzzles
+servers:
+  - url: https://mikedonovan.dev/language-api
+    description: Main production server
+paths:
+  /generateBoggle:
+    post:
+      summary: Generate a Boggle puzzle
+      description: Generates a Boggle puzzle based on provided options.
+      operationId: generateBogglePuzzle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardRequestData"
+      responses:
+        "200":
+          description: Successfully generated the Boggle puzzle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedBoardData"
+        "400":
+          description: Bad Request - Invalid input provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server Error - Error generating the puzzle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    BoardRequestData:
+      type: object
+      properties:
+        dimensions:
+          type: object
+          properties:
+            width:
+              type: integer
+              example: 4
+              default: 4
+            height:
+              type: integer
+              example: 4
+              default: 4
+          required:
+            - width
+            - height
+        letterDistribution:
+          type: string
+          description: Method to distribute letters on the board
+          example: boggle
+          default: boggle
+        maxAttempts:
+          type: integer
+          description: Maximum number of attempts to generate a valid puzzle
+          example: 1
+          default: 1
+        returnBest:
+          type: boolean
+          description: Whether to return the best puzzle found if a valid one is not found
+          example: true
+          default: true
+        customizations:
+          type: object
+          properties:
+            customLetters:
+              type: object
+              properties:
+                letterList:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - a
+                    - b
+                    - c
+                    - d
+                convertQ:
+                  type: boolean
+                  example: true
+                shuffle:
+                  type: boolean
+                  example: false
+            requiredWords:
+              type: object
+              properties:
+                wordList:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - word
+                    - another
+                convertQ:
+                  type: boolean
+                  example: true
+        filters:
+          type: object
+          description: Optional filters to apply constraints on the puzzle generation
+          properties:
+            averageWordLengthFilter:
+              $ref: "#/components/schemas/ComparisonFilterData"
+            totalWordLimits:
+              type: object
+              properties:
+                min:
+                  type: integer
+                  description: Minimum total number of words allowed
+                  example: 10
+                max:
+                  type: integer
+                  description: Maximum total number of words allowed
+                  example: 100
+            uncommonWordLimit:
+              $ref: "#/components/schemas/ComparisonFilterData"
+            wordLengthLimits:
+              type: array
+              items:
+                $ref: "#/components/schemas/WordLengthPreference"
+        theme:
+          type: string
+          description: Optional theme for the puzzle
+          example: forest
+      required:
+        - dimensions
+        - letterDistribution
+    ComparisonFilterData:
+      type: object
+      properties:
+        comparison:
+          type: string
+          description: Type of comparison to apply (e.g., 'lessThan', 'moreThan')
+          example: lessThan
+        value:
+          type: number
+          description: Value for comparison
+          example: 3.5
+    WordLengthPreference:
+      type: object
+      properties:
+        comparison:
+          type: string
+          description: Comparison type (e.g., 'lessThan', 'moreThan')
+          example: lessThan
+        wordLength:
+          type: integer
+          description: Specific word length to apply the comparison
+          example: 5
+        value:
+          type: number
+          description: The value to compare against
+          example: 10
+    GeneratedBoardData:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Puzzle generated successfully.
+        data:
+          type: object
+          properties:
+            matrix:
+              type: array
+              items:
+                type: array
+                items:
+                  type: string
+              example:
+                - - a
+                  - b
+                - - c
+                  - d
+            wordList:
+              type: array
+              items:
+                type: string
+              example:
+                - abc
+                - bcd
+            serverDuration:
+              type: integer
+              description: Time taken by the server to generate the puzzle in milliseconds
+              example: 150
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: An error occurred while generating the puzzle.
+        errorCode:
+          type: integer
+          example: 400

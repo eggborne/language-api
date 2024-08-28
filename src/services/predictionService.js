@@ -26,6 +26,7 @@ const getTotalWordsPrediction =  async (inputData) => {
 const getClosestPuzzleToTotal = async (totalWordTarget, repetitions) => {
   let bestPuzzle;
   let closestOffBy = 9999;
+  let closest = 0;
   for (let i = 0; i < repetitions; i++) {
     const { letterList } = getRandomCubes('boggle');
     const matrix = arrayToSquareMatrix(letterList);
@@ -34,12 +35,13 @@ const getClosestPuzzleToTotal = async (totalWordTarget, repetitions) => {
     if (offBy < closestOffBy) {
       closestOffBy = offBy;
       bestPuzzle = letterList.flat().join('');
-      console.log(prediction, 'best so far!')
+      closest = prediction;
+      console.log(i, prediction, 'best so far!')
     } else {
-      console.log(prediction, 'no good')
+      console.log(i, prediction, 'no good')
     }
   }
-  return { bestPuzzle, closestOffBy };
+  return { bestPuzzle, closest };
 }
 
 module.exports = { getClosestPuzzleToTotal, getTotalWordsPrediction };

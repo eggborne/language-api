@@ -3,17 +3,18 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
-const { generatePuzzle, solveBoggle } = require('./services/boggleService');
+const { generatePuzzle, solveBoggle, buildDictionary } = require('./services/boggleService');
 const isPronounceable = require('./pronounceabilityService');
 const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const { pruneLetterListCollection } = require('./pruneList');
 const { collectTrainingData } = require('./collectTrainingData');
-const { arrayToSquareMatrix, averageOfValues, convertMilliseconds } = require('./scripts/util');
+const { arrayToSquareMatrix, averageOfValues, convertMilliseconds, averageOfValue, randomInt } = require('./scripts/util');
 const { getTotalWordsPrediction, getClosestPuzzleToTotal } = require('./services/predictionService');
-const { getBestLists, sendListToRemote } = require('./scripts/research');
+const { getBestLists, sendListToRemote, compileResearchFiles, evaluateResearchList } = require('./scripts/research');
 const { trainingDataLocalPath } = require('./config.json');
+const { getTopPuzzles } = require('./getTopPuzzles');
 require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
@@ -28,14 +29,16 @@ const minifyAndCompress = (jsonData) => {
   return compressedData;
 };
 
-async function collect(repetitions, saveLocally, push) {
+async function collect(cores, repetitions, saveLocally, push, attribute, qualityLimits) {
   const startTime = Date.now();
-  let data = await collectTrainingData(repetitions);
+  const data = attribute ?
+    await getTopPuzzles(repetitions, attribute, cores, qualityLimits)
+    : await collectTrainingData(repetitions);
   const quantity = data.length;
   console.log('Time per item ------>', (quantity / (Date.now() - startTime)));
   if (saveLocally) {
     const compressedData = minifyAndCompress(data);
-    const trainingDataDir = path.resolve(__dirname, trainingDataLocalPath);
+    const trainingDataDir = path.resolve(__dirname, `${trainingDataLocalPath}/training_data`);
     const filePath = path.join(trainingDataDir, `training_data-${repetitions}.gz`);
     fs.writeFileSync(filePath, compressedData);
     console.log(`Wrote new list locally.`);
@@ -66,11 +69,12 @@ if (process.env.NODE_ENV === 'development') {
 
   app.post(`${prefix}/predict`, async (req, res) => {
     const { letterList } = req.body;
+    console.log('predicting for', letterList)
     try {
       const startTime = Date.now();
       const matrix = arrayToSquareMatrix(letterList.split(''));
       const prediction = await getTotalWordsPrediction(matrix);
-      console.log('Took', convertMilliseconds(Date.now() - startTime), '-> PREDICTION FOR', letterList, prediction);
+      console.log('Took', convertMilliseconds(Date.now() - startTime), '-> Prediction for', letterList, prediction);
       res.status(400).json(prediction);
     } catch (error) {
       console.error('Error applying model:', error);
@@ -82,11 +86,11 @@ if (process.env.NODE_ENV === 'development') {
     const { totalWordTarget, repetitions } = req.body;
     try {
       const startTime = Date.now();
-      const { bestPuzzle, closestOffBy } = await getClosestPuzzleToTotal(totalWordTarget, repetitions);
-      console.log(bestPuzzle, closestOffBy, '- closest to', totalWordTarget, '? Took', convertMilliseconds(Date.now() - startTime));
+      const { bestPuzzle, closest } = await getClosestPuzzleToTotal(totalWordTarget, repetitions);
+      console.log(bestPuzzle, closest, '- closest to', totalWordTarget, '? Took', convertMilliseconds(Date.now() - startTime));
       res.status(400).json({
         best: bestPuzzle,
-        offby: closestOffBy
+        totalWordPrediction: closest
       });
     } catch (error) {
       console.error('Error applying model:', error);
@@ -97,20 +101,53 @@ if (process.env.NODE_ENV === 'development') {
   // collect
 
   app.post(`${prefix}/collect`, async (req, res) => {
-    const { cycles, repetitions, saveLocally, push } = req.body;
+    const { cycles, compile = false, cores = 8, repetitions, saveLocally, push, attributes, qualityLimits } = req.body;
     try {
-      console.log('\nCollecting', cycles, 'cycles of', repetitions, 'puzzles');
+      console.log('\nCollecting', cycles, 'cycles of', repetitions, 'puzzles.');
+      let attrIndex = 0;
       for (let i = 0; i < cycles; i++) {
-        await collect(repetitions, saveLocally, push);
-        const best = await getBestLists();
-        const bestAverage = averageOfValues(best, 5);
-        console.log(`\nNew average totalWords for ${Object.values(best).length} special puzzles ---> `, bestAverage, `\n`);
+        const attribute = attributes[attrIndex];
+        // const currentLimits = qualityLimits;
+        const currentLimits = [
+          { "min": 600, "max": 9999 },
+          { "min": 400, "max": 600 },
+          { "min": 250, "max": 400 },
+          { "min": 100, "max": 250 },
+          { "min": 50, "max": 100 },
+        ][randomInt(0, 4)];
+        console.log('Rep', i, 'using attribute', attribute || 'default ', 'currentLimits', currentLimits);
+        await collect(cores, repetitions, saveLocally, push, attribute, currentLimits);
+        let best;
+        if (attribute !== 'totalWords') {
+          const listFileName = `best-${attribute}-${qualityLimits.min}-${qualityLimits.max}.json`;
+          best = await getBestLists(listFileName.replace(/percentUncommon/g, 'percentCommon'));
+        } else {
+          best = await getBestLists(`best-totalWords.json`);
+        }
+        const bestAverage = averageOfValue(best, attribute, 5);
+        attrIndex++;
+        if (attrIndex >= attributes.length) {
+          attrIndex = 0;
+        }
+        console.log(`\nNew average ${attribute.replace(/percentUncommon/g, 'percentCommon')} for ${Object.values(best).length} special puzzles ---> `, bestAverage, `\n`);
       }
-      res.status(400).json('\n', cycles, 'cycles of', repetitions, 'finished.');
+      if (compile) {
+        console.log('compiling research/puzzle_stats.json...');
+        await compileResearchFiles('puzzle_stats.json');
+      }
+
+      res.status(400).json(cycles, 'cycles of', repetitions, 'finished.');
     } catch (error) {
       console.error('Error generating training data:', error);
       res.status(500).send('Failed to generate training data');
     }
+  });
+
+  // evaluate
+
+  app.post(`${prefix}/evaluate`, async (req, res) => {
+    console.log('Compiling...')
+    await compileResearchFiles();
   });
 
   // prune
@@ -131,7 +168,12 @@ if (process.env.NODE_ENV === 'development') {
 
 // generate
 
+let trie;
+
 app.post(`${prefix}/generateBoggle`, async (req, res) => {
+  if (!trie) {
+    trie = await buildDictionary();
+  }
   try {
     const options = req.body;
     const genStart = Date.now();
