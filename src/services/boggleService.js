@@ -1,23 +1,20 @@
-const Trie = require('../scripts/trie');
 const config = require('../config.json');
 const path = require('path');
+
+let TRIE;
 
 const {
   cubeSets,
   letterFrequencyMaps,
   letterKeys,
   syllableUnits,
-  wordListFilePath,
   commonWordListFilePath,
   defaultOptions,
 } = config;
 
 const commonPath = path.resolve(__dirname, commonWordListFilePath);
 const commonWords = require(commonPath);
-const { comparePuzzleData, shuffleArray, decodeList, encodeList } = require('../scripts/util');
-const filePaths = {
-  wordList: path.join(__dirname, wordListFilePath),
-};
+const { comparePuzzleData, shuffleArray, decodeList, encodeList, buildDictionary } = require('../scripts/util');
 
 const letterListFromCubeSet = (cubeSet, totalCubes) => {
   let extendedCubeSet = [...cubeSet];
@@ -82,17 +79,6 @@ function generateSyllables(listLength) {
   }
   return syllables;
 }
-
-let trie;
-
-async function buildDictionary() {
-  const startTrie = Date.now();
-  trie = new Trie();
-  await trie.loadWordListFromBinary(filePaths.wordList);
-  console.warn(`-----> Built trie in ${Date.now() - startTrie}ms`);
-  return trie;
-};
-
 
 const findAllWords = (matrix, trie) => {
   const maximumPathLength = 20;
@@ -164,18 +150,10 @@ const generateLetterMatrix = (options) => {
       const { letterList: userLetterList, convertQ, shuffle } = customLetters;
       letterList = userLetterList;
       if (convertQ) {
-        const encodedLetterList = encodeList(userLetterList, { 'qu': 'q' });
-        // const convertedLetterList = decodeList(encodedLetterList, { 'q': 'qu' });
         const convertedLetterList = decodeList(userLetterList, { 'q': 'qu' });
-        
         if (userLetterList.length > convertedLetterList.length) {
-          console.error('length no math!!')
-          return;
-          const lettersShort = userLetterList.length - convertedLetterList.length;
-          letterList = [
-            ...convertedLetterList,
-            ...getLetterList(defaultOptions.letterDistribution, lettersShort)
-          ];
+          console.error('length no match!!');
+          return;         
         } else {
           letterList = convertedLetterList;
         }
@@ -188,8 +166,9 @@ const generateLetterMatrix = (options) => {
       let letterCollectionList = wordList.map(wordString => wordString.toLowerCase().split(''));
       if (convertQ) {
         letterCollectionList = letterCollectionList.map(wordArray => {
-          const encodedwordLetterList = encodeList(wordArray, { 'qu': 'q' });
-          const letterCollection = decodeList(encodedwordLetterList, { 'q': 'qu' });
+          // const encodedwordLetterList = encodeList(wordArray, { 'qu': 'q' });
+          // const letterCollection = decodeList(encodedwordLetterList, { 'q': 'qu' });
+          const letterCollection = decodeList(wordArray, { 'q': 'qu' });
           return letterCollection;
         });
       }
@@ -325,18 +304,17 @@ const getWordLengthAmounts = (wordList) => (
 );
 
 const getPuzzleValidityData = (wordList, metadata, options) => {
-
   const validityData = {
     averageWordLength: wordList.reduce((sum, word) => sum + word.length, 0) / wordList.length,
     fullListLength: wordList.length,
     percentUncommon: metadata.percentUncommon,
+    percentCommon: 100 - metadata.percentUncommon,
     wordLengthAmounts: getWordLengthAmounts(wordList),
     valid: true,
   };
 
   if (options.filters) {
     const { uncommonWordLimit, totalWordLimits, averageWordLengthFilter, wordLengthLimits } = options.filters;
-
     // pecentage of uncommon words
     if (uncommonWordLimit) {
       const { comparison, value } = uncommonWordLimit;
@@ -379,60 +357,59 @@ const getPuzzleValidityData = (wordList, metadata, options) => {
       }
     }
   }
-  validityData.percentCommon = 100 - validityData.percentUncommon;
   delete validityData.percentUncommon;
   return validityData;
 };
 
 const resolvePuzzleOptions = (options) => {
-  options = { ...defaultOptions, ...options };
-  const { width: userWidth, height: userHeight } = options.dimensions;
+  const resolvedOptions = { ...options };
+  const { width: userWidth, height: userHeight } = options.dimensions || {};
   const width = userWidth || defaultOptions.dimensions.width;
   const height = userHeight || defaultOptions.dimensions.height;
-  options.dimensions = {
+  resolvedOptions.dimensions = {
     width: userWidth || height,
     height: userHeight || width
   };
   if (options.customizations) {
     if (options.customizations.customLetters) {
-      const { letterList, shuffle } = options.customizations.customLetters;
-      const totalNeeded = options.dimensions.width * options.dimensions.height;
-      if (letterList.length < totalNeeded) {
-        let correctedLetterString = '';
-        const lettersShort = (totalNeeded > letterList.length) ? (totalNeeded - letterList.length) : 0;
-        if (lettersShort) {
-          correctedLetterString;
-          options.customizations.customLetters.letterList =
-            [
-              ...letterList,
-              ...getLetterList(defaultOptions.letterDistribution, lettersShort)
-            ];
-        } else {
-          options.customizations.customLetters.letterList.length = totalNeeded;
-        }
+      resolvedOptions.customizations.customLetters = {
+        ...defaultOptions.customizations.customLetters,
+        ...options.customizations.customLetters
+      };
+      const { letterList } = options.customizations.customLetters;
+      const totalNeeded = resolvedOptions.dimensions.width * resolvedOptions.dimensions.height;
+      if (letterList.length !== totalNeeded) {
+        console.log('wrong length!');
+        return;
       }
-      // if (!shuffle) {
-      //   console.log('\nreturnBest set false due to no shuffle?\n')
-      //   options.returnBest = false;
-      // }
-
     }
     if (options.customizations.requiredWords) {
       options.customizations.requiredWords.wordList = options.customizations.requiredWords.wordList.sort((a, b) => b.length - a.length);
       console.log('sorted required words:', options.customizations.requiredWords.wordList);
     }
-
   }
+
+  if (options.filters) {
+    if (options.filters.totalWordLimits) {
+      resolvedOptions.filters.totalWordLimits = {
+        ...defaultOptions.filters.totalWordLimits,
+        ...options.filters.totalWordLimits
+      };
+    }
+  }
+
   return {
-    ...defaultOptions,
-    ...options,
+    ...resolvedOptions,
+    letterDistribution: options.letterDistribution || defaultOptions.letterDistribution,
+    maxAttempts: options.maxAttempts || defaultOptions.maxAttempts,
+    returnBest: options.returnBest || defaultOptions.returnBest,
   };
 };
 
 const solveBoggle = async (letterString) => {
 
-  if (!trie) await buildDictionary();
-
+  if (!TRIE) TRIE = await buildDictionary();
+  
   let width, height;
   let lettersArray = letterString.trim().toLowerCase().split('');
   const { userWidth, userHeight } = {
@@ -483,9 +460,9 @@ const solveBoggle = async (letterString) => {
 const generatePuzzle = async (options, trie) => {
   if (!trie) trie = await buildDictionary();
 
-  // console.log('received options', options);
+  console.log('received options', options);
   options = resolvePuzzleOptions(options);
-  // console.log('\nGenerating with resolved options\n', options);
+  console.log('\nGenerating with resolved options\n', options);
   const maxAttempts = options.maxAttempts;
   let bestSoFar;
   let result;
@@ -621,4 +598,4 @@ const generatePuzzle = async (options, trie) => {
   return result;
 };
 
-module.exports = { buildDictionary, generatePuzzle, getLetterList, solveBoggle };
+module.exports = { generatePuzzle, getLetterList, solveBoggle };

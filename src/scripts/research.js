@@ -2,8 +2,8 @@ const path = require('path');
 const axios = require('axios');
 const fs = require('fs/promises');
 const { cubeSets, trainingDataLocalPath, trainingDataRemotePath } = require('../config.json');
-const { arrayToSquareMatrix, randomInt, decodeList, encodeList, encodeMatrix } = require('./util');
-const { generatePuzzle, buildDictionary } = require('../services/boggleService');
+const { arrayToSquareMatrix, randomInt, decodeList, encodeList, encodeMatrix, buildDictionary } = require('./util');
+const { generatePuzzle } = require('../services/boggleService');
 
 const listDataDir = path.resolve(__dirname, `../${trainingDataLocalPath}/research`);
 
@@ -177,7 +177,7 @@ const compileResearchList = async (evaluationFileName = 'puzzle_stats.json', des
   const evaluatePath = path.join(listDataDir, evaluationFileName);
   const fileContent = await fs.readFile(evaluatePath, 'utf-8');
   const jsonData = JSON.parse(fileContent);
-  const newList = {};
+  let newList = {};
   for (const letterString in jsonData) {
     if (letterString.length !== 16) {
       console.error(letterString, 'letterString wrong length', letterString.length);
@@ -223,8 +223,11 @@ const compileResearchList = async (evaluationFileName = 'puzzle_stats.json', des
     newList[evaluatedMatrixString] = newMetaData;
   }
   const fullOutputPath = path.join(listDataDir, destinationFileName);
+  newList = Object.fromEntries(
+    Object.entries(newList).sort((a, b) => b[1].totalWords - a[1].totalWords)
+  );
   await fs.writeFile(fullOutputPath, JSON.stringify(newList, null, 2));
-  console.log(`Full-stats compilation complete. Output written to ${destinationFileName}`);
+  console.log(`Full-stats compilation complete. Output written to ${fullOutputPath}`);
 };
 
 module.exports =

@@ -3,9 +3,8 @@ const os = require('os');
 const cliProgress = require('cli-progress');
 const colors = require('colors');
 const path = require('path');
-const { averageOfValues, averageOfValue } = require('./scripts/util');
+const { averageOfValues, averageOfValue, buildDictionary } = require('./scripts/util');
 const { getBestLists, addToBestList, addToObj1IfGreaterThanAverage, sendListToRemote } = require('./scripts/research');
-const { buildDictionary } = require('./services/boggleService');
 
 let trie = false;
 
@@ -14,9 +13,7 @@ const getTopPuzzles = async (repetitions, attribute, cores, qualityLimits) => {
   const chunkSize = Math.min(Math.ceil(repetitions / numCPUs), 50000)
   console.log('CPUS:', numCPUs, 'chunkSize:', chunkSize);
 
-  if (!trie) {
-    trie = await buildDictionary();
-  }
+  if (!trie) trie = await buildDictionary();
 
   let progressBar = new cliProgress.SingleBar({
     format: 'Top ' + attribute + ' progress |' + colors.cyan('{bar}') + '| {percentage}% || {value}/{total} Lists || ETA: {eta}s',

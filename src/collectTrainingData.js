@@ -3,9 +3,8 @@ const os = require('os');
 const cliProgress = require('cli-progress');
 const colors = require('colors');
 const path = require('path');
-const { averageOfValues } = require('./scripts/util');
+const { averageOfValues, buildDictionary } = require('./scripts/util');
 const { getBestLists, addToBestList, addToObj1IfGreaterThanAverage, sendListToRemote } = require('./scripts/research');
-const { buildDictionary } = require('./services/boggleService');
 
 const numCPUs = os.cpus().length;
 // const numCPUs = 4;

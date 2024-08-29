@@ -3,14 +3,14 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
-const { generatePuzzle, solveBoggle, buildDictionary } = require('./services/boggleService');
+const { generatePuzzle, solveBoggle } = require('./services/boggleService');
 const isPronounceable = require('./pronounceabilityService');
 const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const { pruneLetterListCollection } = require('./pruneList');
 const { collectTrainingData } = require('./collectTrainingData');
-const { arrayToSquareMatrix, averageOfValues, convertMilliseconds, averageOfValue, randomInt } = require('./scripts/util');
+const { arrayToSquareMatrix, averageOfValues, convertMilliseconds, averageOfValue, randomInt, buildDictionary } = require('./scripts/util');
 const { getTotalWordsPrediction, getClosestPuzzleToTotal } = require('./services/predictionService');
 const { getBestLists, sendListToRemote, compileResearchFiles, evaluateResearchList } = require('./scripts/research');
 const { trainingDataLocalPath } = require('./config.json');
@@ -22,6 +22,8 @@ const prefix = '/language-api';
 
 app.use(cors());
 app.use(express.json());
+
+let trie;
 
 const minifyAndCompress = (jsonData) => {
   const minifiedData = JSON.stringify(jsonData);
@@ -168,8 +170,6 @@ if (process.env.NODE_ENV === 'development') {
 
 // generate
 
-let trie;
-
 app.post(`${prefix}/generateBoggle`, async (req, res) => {
   if (!trie) {
     trie = await buildDictionary();
@@ -177,7 +177,7 @@ app.post(`${prefix}/generateBoggle`, async (req, res) => {
   try {
     const options = req.body;
     const genStart = Date.now();
-    const puzzle = await generatePuzzle(options);
+    const puzzle = await generatePuzzle(options, trie);
     const serverDuration = Date.now() - genStart;
     if (puzzle.data) {
       res.json({

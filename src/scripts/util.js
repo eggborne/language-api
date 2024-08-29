@@ -1,8 +1,19 @@
+const config = require('../config.json');
 const path = require('path');
 const fs = require('fs');
+const Trie = require('./trie');
+const { wordListFilePath } = config;
 
 const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const pause = (duration) => new Promise(resolve => setTimeout(resolve, duration));
+
+const buildDictionary = async () => {
+  const startTrie = Date.now();
+  const trie = new Trie();
+  await trie.loadWordListFromBinary(path.join(__dirname, wordListFilePath));
+  console.warn(`-----> Built trie in ${Date.now() - startTrie}ms`);
+  return trie;
+};
 
 const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
   const { uncommonWordLimit, totalWordLimits, averageWordLengthFilter, wordLengthLimits } = options.filters;
@@ -208,28 +219,18 @@ const encodeMatrix = (matrix, key) => {
 };
 
 async function convertJsonToBinary(jsonFilePath, binaryFilePath) {
-  // Read the JSON file
   const jsonData = await fs.promises.readFile(jsonFilePath, 'utf8');
-
-  // Parse the JSON data
   const words = JSON.parse(jsonData);
-
-  // Open a writable stream for the binary file
   const writer = fs.createWriteStream(binaryFilePath);
-
-  // Process each word
   words.forEach(word => {
     // Create a buffer for the length (1 byte) + word
     const wordBuffer = Buffer.from(word, 'utf8');
     const lengthBuffer = Buffer.alloc(1);
     lengthBuffer.writeUInt8(wordBuffer.length, 0);
-
     // Write the length and the word to the binary file
     writer.write(lengthBuffer);
     writer.write(wordBuffer);
   });
-
-  // Close the stream
   writer.end();
 }
 
@@ -298,50 +299,6 @@ const getHigherScores = (obj1, obj2) => {
   );
 };
 
-// Function to compile JSON files based on attributes in their file names
-function compileJsonFiles(directory, outputFile) {
-  const compiledData = {};
-
-  // Read all files from the specified directory
-  fs.readdir(directory, (err, files) => {
-    if (err) {
-      console.error(`Error reading directory: ${err}`);
-      return;
-    }
-
-    // Filter and process only JSON files
-    files.forEach(file => {
-      if (path.extname(file) === '.json') {
-        const attributeMatch = file.match(/best-(.*?)(-|\.json)/);
-        if (attributeMatch && attributeMatch[1]) {
-          const attribute = attributeMatch[1];
-
-          // Read the JSON file
-          const filePath = path.join(directory, file);
-          const fileData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-
-          // Add the data to the compiledData object
-          Object.entries(fileData).forEach(([key, value]) => {
-            if (!compiledData[key]) {
-              compiledData[key] = {};
-            }
-            compiledData[key][attribute] = value;
-          });
-        }
-      }
-    });
-
-    // Write the compiled data to the destination file
-    fs.writeFile(outputFile, JSON.stringify(compiledData, null, 2), (err) => {
-      if (err) {
-        console.error(`Error writing to file: ${err}`);
-      } else {
-        console.log(`Data successfully compiled into ${outputFile}`);
-      }
-    });
-  });
-}
-
 const sortObjectByValues = (obj) =>
   Object.fromEntries(
     Object.entries(obj).sort(([, a], [, b]) => b - a)
@@ -351,6 +308,7 @@ module.exports = {
   arrayToSquareMatrix,
   averageOfValues,
   averageOfValue,
+  buildDictionary,
   checkStructure,
   comparePuzzleData,
   convertMilliseconds,
