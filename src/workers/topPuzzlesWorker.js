@@ -1,72 +1,94 @@
-const { parentPort, workerData } = require('worker_threads');
+const { parentPort } = require('worker_threads');
 const { generatePuzzle } = require('../services/boggleService');
-const { arrayToSquareMatrix } = require('../scripts/util');
+const { encodeMatrix } = require('../scripts/util');
 const { getRandomCubes } = require('../scripts/research');
 
-
-const processChunk = async () => {
-  const { attribute, qualityLimits, start, end, listAverage, trie, chunkSize } = workerData;
+const processChunk = async (workerData) => {
+  const { size, attributes, letterDistribution, maxAttempts, qualityLimits, start, end, attributeData, trie, chunkSize } = workerData;
   const trainingData = [];
   const saveableLetterLists = {};
+
+  // Initialize saveableLetterLists for each attribute
+  for (const attribute of attributes) {
+    saveableLetterLists[attribute] = {};
+  }
 
   for (let chunkStart = start; chunkStart < end; chunkStart += chunkSize) {
     const chunkEnd = Math.min(chunkStart + chunkSize, end);
 
     for (let i = chunkStart; i < chunkEnd; i++) {
-      let letterDistribution = 'boggle';
-      const { letterList } = getRandomCubes(letterDistribution);
+      let distribution = letterDistribution || ['boggle', 'bigBoggle', 'superBigBoggle'][size - 4];
+      const { letterList } = getRandomCubes(distribution);
       const puzzleOptions = {
-        maxAttempts: 1,
-        dimensions: { width: 4, height: 4 },
-        letterDistribution,
+        dimensions: { width: size, height: size },
+        letterDistribution: distribution,
         customizations: {
           customLetters: {
             letterList,
             convertQ: true,
-            shuffle: false,
+            shuffle: true,
           }
         },
+        filters: {
+          totalWordLimits: {
+            ...qualityLimits
+          }
+        },
+        maxAttempts,
+        returnBest: false
       };
 
       const puzzleResult = await generatePuzzle(puzzleOptions, trie);
-      const listKey = attribute.replace(/percentUncommon/g, 'percentCommon')
-      const newAttributeValue = attribute === 'totalWords' ?
-        puzzleResult.data.wordList.length
-        : attribute === 'percentUncommon' ?
-          (100 - puzzleResult.data.metadata[attribute])
-          : puzzleResult.data.metadata[attribute];
 
-      const newItem = {
-        matrix: arrayToSquareMatrix(letterList),
-        [listKey]: newAttributeValue,
-      };
-      trainingData.push(newItem);
+      if (!puzzleResult.data) {
+        // console.log('\n', i, puzzleResult.message);
+      } else {
+        const wordAmount = puzzleResult.data.wordList.length;
+        const encodedResultMatrix = encodeMatrix(puzzleResult.data.matrix, { 'q': 'qu' });
 
-      const qualifies = attribute === 'percentUncommon' ?
-        ((newAttributeValue > listAverage)
-          && puzzleResult.data.wordList.length >= (qualityLimits.min || 50)
-          && puzzleResult.data.wordList.length < (qualityLimits.max || 9999))
-        :
-        (newAttributeValue > listAverage);
+        const newItem = {
+          matrix: encodedResultMatrix,
+          wordAmount
+        };
+        for (const attribute of attributes) {
+          const newAttributeValue = attribute === 'totalWords' ? wordAmount : puzzleResult.data.metadata[attribute];
+          newItem[attribute] = newAttributeValue;
 
-      if (qualifies) {
-        saveableLetterLists[letterList.join('')] = newAttributeValue;
+          const { listAverage } = attributeData[attribute];
+
+          const itemAboveAverage = newAttributeValue > listAverage;
+          const wordAmountWithinLimits = wordAmount >= (qualityLimits.min) && wordAmount < (qualityLimits.max || 9999);
+
+          if (itemAboveAverage && wordAmountWithinLimits) {
+            const letterString = encodedResultMatrix.flat().join('');
+            saveableLetterLists[attribute][letterString] = newAttributeValue;
+          }
+        }
+        // trainingData.push(newItem);
       }
 
       parentPort.postMessage({ type: 'progress' });
     }
   }
 
-  parentPort.postMessage({
-    type: 'result',
-    data: {
-      trainingData,
-      saveableLetterLists,
-    }
-  });
+  return {
+    trainingData,
+    saveableLetterLists,
+  };
 };
 
-processChunk().catch(error => {
-  console.error('Worker error:', error);
-  process.exit(1);
+parentPort.on('message', async (workerData) => {
+  try {
+    const result = await processChunk(workerData);
+    parentPort.postMessage({
+      type: 'result',
+      data: result
+    });
+  } catch (error) {
+    console.error('Worker error:', error);
+    parentPort.postMessage({
+      type: 'error',
+      data: error.message
+    });
+  }
 });

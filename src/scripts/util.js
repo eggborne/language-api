@@ -2,6 +2,7 @@ const config = require('../config.json');
 const path = require('path');
 const fs = require('fs');
 const Trie = require('./trie');
+const zlib = require('zlib');
 const { wordListFilePath } = config;
 
 const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -44,18 +45,18 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
   if (uncommonWordLimit) {
     const violationAmounts = { oldPuzzle: 0, newPuzzle: 0 };
     const { comparison, value } = uncommonWordLimit;
-    const uncommonInA = oldPuzzle.validityData.percentUncommon;
-    const uncommonInB = newPuzzle.validityData.percentUncommon;
+    const commonInA = oldPuzzle.validityData.commonWordAmount;
+    const commonInB = newPuzzle.validityData.commonWordAmount;
     if (comparison === 'lessThan') {
-      violationAmounts.oldPuzzle = uncommonInA >= value ? Math.abs(uncommonInA - value) : 0;
-      violationAmounts.newPuzzle = uncommonInB >= value ? Math.abs(uncommonInB - value) : 0;
+      violationAmounts.oldPuzzle = commonInA <= value ? Math.abs(commonInA - value) : 0;
+      violationAmounts.newPuzzle = commonInB <= value ? Math.abs(commonInB - value) : 0;
     }
     if (comparison === 'moreThan') {
-      violationAmounts.oldPuzzle = uncommonInA <= value ? Math.abs(uncommonInA - value) : 0;
-      violationAmounts.newPuzzle = uncommonInB <= value ? Math.abs(uncommonInB - value) : 0;
+      violationAmounts.oldPuzzle = commonInA >= value ? Math.abs(commonInA - value) : 0;
+      violationAmounts.newPuzzle = commonInB >= value ? Math.abs(commonInB - value) : 0;
     }
     if (violationAmounts.newPuzzle < violationAmounts.oldPuzzle) {
-      // console.log('newPuzzle has better uncommonWordLimit:', 'new', uncommonInB, 'vs old', uncommonInA);
+      // console.log('newPuzzle has better uncommonWordLimit:', 'new', commonInB, 'vs old', commonInA);
       increasesForPuzzle.uncommonWordLimit++;
       categoryWinners.uncommonWordLimit = newPuzzle;
     }
@@ -144,23 +145,6 @@ const comparePuzzleData = (oldPuzzle, newPuzzle, options) => {
     wonCategories.length === Object.values(options.filters).length
   ) {
     preferred = newPuzzle;
-    // console.log('\nNew puzzle won in categories: ' + wonCategories.join(', '));
-    // console.log(
-    //   '>>> Old --->',
-    //   oldPuzzle.validityData.fullListLength, 'total',
-    //   oldPuzzle.validityData.percentUncommon + '% unc',
-    //   (oldPuzzle.puzzleData.metadata.averageWordLength).toFixed(2), 'avg',
-    //   JSON.stringify(oldPuzzle.validityData.wordLengthAmounts),
-    //   '------->', `${options.dimensions.width}${options.dimensions.height}${oldPuzzle.puzzleData.matrix.flat(2).join('')}`
-    // ), '\n\n';
-    // console.log(
-    //   '>>> New --->',
-    //   preferred.validityData.fullListLength, 'total',
-    //   preferred.validityData.percentUncommon + '% unc',
-    //   (preferred.puzzleData.metadata.averageWordLength).toFixed(2), 'avg',
-    //   JSON.stringify(preferred.validityData.wordLengthAmounts),
-    //   '------->', `${options.dimensions.width}${options.dimensions.height}${preferred.puzzleData.matrix.flat(2).join('')}`
-    // ) + '\n';
   }
 
   const newIncreases = {};
@@ -185,7 +169,7 @@ const shuffleArray = (arr) => {
 
 const arrayToSquareMatrix = (flatArray) => Array(Math.sqrt(flatArray.length)).fill().map((_, i) => flatArray.slice(i * Math.sqrt(flatArray.length), (i + 1) * Math.sqrt(flatArray.length)));
 
-const decodeMatrix = (matrix, key) => {
+const decodeMatrix = (matrix, key = { 'q': 'qu' }) => {
   const convertedMatrix = matrix.map(row =>
     row.map(cell => {
       return Object.prototype.hasOwnProperty.call(key, cell) ? key[cell] : cell;
@@ -194,8 +178,8 @@ const decodeMatrix = (matrix, key) => {
   return convertedMatrix;
 };
 
-const decodeList = (list, key) => (list.map(item => key[item] || item));
-const encodeList = (list, key) => {
+const decodeList = (list, key = { 'q': 'qu' }) => (list.map(item => key[item] || item));
+const encodeList = (list, key = { 'qu' : 'q'}) => {
   let encoded = list.join('').replace(
     new RegExp(Object.keys(key).join('|'), 'g'),
     match => key[match]
@@ -203,7 +187,7 @@ const encodeList = (list, key) => {
   return encoded;
 };
 
-const encodeMatrix = (matrix, key) => {
+const encodeMatrix = (matrix, key = { 'q': 'qu' }) => {
   if (!key) return matrix;
   const reversedKey = Object.fromEntries(
     Object.entries(key).map(([k, v]) => [v, k])
@@ -299,6 +283,12 @@ const getHigherScores = (obj1, obj2) => {
   );
 };
 
+const minifyAndCompress = (jsonData) => {
+  const minifiedData = JSON.stringify(jsonData);
+  const compressedData = zlib.gzipSync(minifiedData);
+  return compressedData;
+};
+
 const sortObjectByValues = (obj) =>
   Object.fromEntries(
     Object.entries(obj).sort(([, a], [, b]) => b - a)
@@ -318,6 +308,7 @@ module.exports = {
   encodeMatrix,
   enumerateLetterList,
   getHigherScores,
+  minifyAndCompress,
   pause,
   randomInt,
   sortObjectByValues,

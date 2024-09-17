@@ -33,6 +33,43 @@ class Trie {
       offset += 1 + length;
     }
   }
+
+  async saveTrie(filePath) {
+    const serializedTrie = this.serializeTrie();
+    await fs.promises.writeFile(filePath, JSON.stringify(serializedTrie));
+  }
+
+  serializeTrie(node = this.root) {
+    const serialized = {};
+    if (node.isEndOfWord) {
+      serialized.end = true;
+    }
+    for (const [char, childNode] of node.children) {
+      serialized[char] = this.serializeTrie(childNode);
+    }
+    return serialized;
+  }
+
+  static async loadTrie(filePath) {
+    const data = await fs.promises.readFile(filePath, 'utf8');
+    const serializedTrie = JSON.parse(data);
+    const trie = new Trie();
+    trie.deserializeTrie(serializedTrie);
+    return trie;
+  }
+
+  deserializeTrie(serialized, node = this.root) {
+    if (serialized.end) {
+      node.isEndOfWord = true;
+    }
+    for (const [char, childSerialized] of Object.entries(serialized)) {
+      if (char !== 'end') {
+        const childNode = new TrieNode();
+        node.children.set(char, childNode);
+        this.deserializeTrie(childSerialized, childNode);
+      }
+    }
+  }
 }
 
 module.exports = Trie;

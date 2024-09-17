@@ -1,14 +1,14 @@
 const { getRandomCubes } = require("../scripts/research");
 const { arrayToSquareMatrix } = require("../scripts/util");
 
-const getTotalWordsPrediction =  async (inputData) => {
+const getTotalWordsPrediction = async (inputData, model = 'prediction_model-15.keras') => {
   try {
     const response = await fetch('http://127.0.0.1:5000/predict', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ input: inputData })
+      body: JSON.stringify({ input: inputData, model })
     });
 
     if (!response.ok) {
@@ -21,7 +21,7 @@ const getTotalWordsPrediction =  async (inputData) => {
   } catch (error) {
     console.error('Error:', error);
   }
-}
+};
 
 const getClosestPuzzleToTotal = async (totalWordTarget, repetitions) => {
   let bestPuzzle;
@@ -36,12 +36,12 @@ const getClosestPuzzleToTotal = async (totalWordTarget, repetitions) => {
       closestOffBy = offBy;
       bestPuzzle = letterList.flat().join('');
       closest = prediction;
-      console.log(i, prediction, 'best so far!')
+      console.log(i, prediction, 'best so far!');
     } else {
-      console.log(i, prediction, 'no good')
+      console.log(i, prediction, 'no good');
     }
   }
   return { bestPuzzle, closest };
-}
+};
 
 module.exports = { getClosestPuzzleToTotal, getTotalWordsPrediction };

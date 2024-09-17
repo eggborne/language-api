@@ -1,5 +1,5 @@
-const { syllableUnits, letterKeys } = require('./config.json');
-const { decodeList } = require('./scripts/util');
+const { syllableUnits, letterKeys } = require('./../config.json');
+const { decodeList } = require('../scripts/util');
 
 for (const set in syllableUnits) {
   syllableUnits[set] = decodeList(syllableUnits[set], letterKeys.syllableUnits);
@@ -222,7 +222,5 @@ function isPronounceable(word) {
 
   }
 }
-
-// console.log('------------------------------------>>>>>>>>>>>>>> pronounceabilityService ran');
 
 module.exports = isPronounceable;
